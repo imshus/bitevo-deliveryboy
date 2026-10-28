@@ -142,7 +142,8 @@ function onNetworkBack() {
 
 if (app) {
   window.addEventListener('bitevo-rider', e => {
-    const { offline, signedOut, locationError, ...patch } = e.detail || {};
+    // (barcode answers are for lib/proof.js)
+    const { offline, signedOut, locationError, barcode, barcodeError, barcodeCancelled, photoError, ...patch } = e.detail || {};
     set(patch);
     if (offline) {
       stopTracking();

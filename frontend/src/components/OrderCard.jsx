@@ -10,6 +10,7 @@ const NEXT_STEP = {
   out_for_delivery: 'Deliver to the customer',
 };
 
+// Riders only see an amount when they collect it (cash or UPI on delivery), never for orders paid online.
 const Payment = ({ order }) => (order.cashToCollect > 0
   ? <span className="pay pay--cash">Collect <b>{money(order.cashToCollect)}</b></span>
   : <span className="pay pay--paid">Paid <b>online</b></span>);
@@ -48,7 +49,7 @@ export function OfferCard({ order, onAccept, busy, blockedReason, now }) {
         </div>
         <div className="ocard__main">
           <div className="ocard__who">
-            <b>{plural(order.itemCount, 'item')} · {money(order.total)}</b>
+            <b>{plural(order.itemCount, 'item')}</b>
             <span>{order.tripKm != null ? `${order.tripKm} km from kitchen · ` : ''}{order.status === 'placed' ? 'Kitchen accepting' : 'Being prepared'}</span>
           </div>
           <Payment order={order} />

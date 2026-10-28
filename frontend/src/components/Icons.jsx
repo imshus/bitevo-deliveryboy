@@ -27,3 +27,5 @@ export const Plus = p => <Icon {...p}><path d="M12 5v14M5 12h14" /></Icon>;
 export const Shield = p => <Icon {...p}><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z" /><path d="m9 12 2 2 4-4" /></Icon>;
 export const Star = p => <Icon {...p}><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" /></Icon>;
 export const Signal = p => <Icon {...p}><path d="M5 18v-2M9.5 18v-5M14 18V9M18.5 18V5" /></Icon>;
+export const Camera = p => <Icon {...p}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></Icon>;
+export const Barcode = p => <Icon {...p}><path d="M4 6v12M7 6v12M10.5 6v12M13 6v12M17 6v12M20 6v12" /></Icon>;

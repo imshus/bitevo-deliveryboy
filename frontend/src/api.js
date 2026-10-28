@@ -14,14 +14,15 @@ let onSignedOut = () => {};
 // Called when a request finds the session gone (signed out on the panel, account suspended, expired).
 export const setSignedOutHandler = fn => { onSignedOut = fn; };
 
-async function request(path, { method = 'GET', body } = {}) {
+// `body` is sent as JSON; `file` (a Blob, e.g. a photo) as it is.
+async function request(path, { method = 'GET', body, file } = {}) {
   let res;
   try {
     res = await fetch(`${BASE}/api${path}`, {
       method,
       credentials: 'include',
-      headers: body ? { 'Content-Type': 'application/json' } : {},
-      body: body ? JSON.stringify(body) : undefined,
+      headers: file ? { 'Content-Type': file.type || 'image/jpeg' } : body ? { 'Content-Type': 'application/json' } : {},
+      body: file || (body ? JSON.stringify(body) : undefined),
     });
   } catch {
     throw new ApiError(0, 'No internet connection. Check your network and try again.');
@@ -55,6 +56,8 @@ export const api = {
   accept: id => post(`/orders/${id}/accept`),
   release: id => post(`/orders/${id}/release`),
   pickup: id => post(`/orders/${id}/pickup`),
+  deliveryPhoto: (id, photo) => request(`/orders/${id}/photo`, { method: 'POST', file: photo }),
+  scanLabel: (id, code) => post(`/orders/${id}/scan`, { code }),
   deliver: (id, body) => post(`/orders/${id}/deliver`, body),
 
   route: (from, to) => request(`/route?from=${from.lat},${from.lng}&to=${to.lat},${to.lng}`),

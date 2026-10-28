@@ -1,6 +1,8 @@
 // One order: a map with the road route to the next stop (the kitchen before pickup, the customer after)
 // and the route driven so far; the customer, their address and note, call and navigate buttons, what to
-// collect; and the next step (accept → picked up → delivered).
+// collect (an amount only when the customer pays on delivery); and the next step (accept → picked up →
+// delivered). Delivering takes proof at the door: camera photos of the handover, then the barcode on the
+// order's label (lib/proof.js).
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
@@ -13,9 +15,91 @@ import { money, when, clock, distance, duration, telLink, plural } from '../lib/
 import LiveMap from '../components/LiveMap.jsx';
 import { LocationLine } from '../components/LiveStatus.jsx';
 import { Sheet, Spinner, StatusChip, useToast } from '../components/ui.jsx';
-import { Back, Cash, Check, Navigate, Note, Phone, Pin, Store, Alert, Star } from '../components/Icons.jsx';
+import { Back, Barcode, Camera, Cash, Check, Navigate, Note, Phone, Pin, Store, Alert, Star } from '../components/Icons.jsx';
+import { scanInApp, scanPhoto, scansFromPhoto, scansInApp, shrinkPhoto } from '../lib/proof.js';
 
 const FAR_FROM_DROP_M = 250;
+const MAX_PHOTOS = 4;
+
+// At the door: 1. photos of the handover, 2. the barcode on the order's label. Each is saved on the order
+// straight away (the API checks the barcode), so `o` always says what's done.
+function Proof({ o, onSaved }) {
+  const photoInput = useRef(null);
+  const scanInput = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState('');
+  const photos = o.deliveryPhotos || [];
+
+  const addPhoto = async e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      await api.deliveryPhoto(o._id, await shrinkPhoto(file));
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // `read` gives the barcode's text (null when the rider closed the scanner); the API says if it matches.
+  const check = async read => {
+    setScanning(true);
+    setError('');
+    try {
+      const code = await read();
+      if (code == null) return;
+      await api.scanLabel(o._id, code);
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setScanning(false);
+    }
+  };
+  const scan = () => (scansInApp ? check(scanInApp) : scanInput.current.click());
+  const scanFromPhoto = e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) check(() => scanPhoto(file));
+  };
+
+  return (
+    <div className="proof">
+      <div className={`proof__step${photos.length ? ' is-done' : ''}`}>
+        <b><span>1</span> Photo of the order at the door</b>
+        <div className="proof__photos">
+          {photos.map(src => <img key={src} src={src} alt="Delivery photo" />)}
+          {photos.length < MAX_PHOTOS && (
+            <button type="button" className="proof__add" disabled={uploading} onClick={() => photoInput.current.click()}>
+              {uploading ? <Spinner /> : <><Camera size={22} />{photos.length ? 'Add another' : 'Take photo'}</>}
+            </button>
+          )}
+        </div>
+        <input ref={photoInput} type="file" accept="image/*" capture="environment" hidden onChange={addPhoto} />
+      </div>
+      <div className={`proof__step${o.barcodeChecked ? ' is-done' : ''}`}>
+        <b><span>2</span> Scan the barcode on the bag’s label</b>
+        {o.barcodeChecked ? (
+          <p className="proof__ok"><Check size={18} /> Label matches {o.orderNo}</p>
+        ) : scansInApp || scansFromPhoto ? (
+          <button type="button" className="btn btn--ghost btn--block" disabled={scanning} onClick={scan}>
+            {scanning ? <Spinner /> : <><Barcode size={20} /> Scan barcode</>}
+          </button>
+        ) : (
+          <p className="muted small">Scanning needs the BiteVo Rider Android app.</p>
+        )}
+        <input ref={scanInput} type="file" accept="image/*" capture="environment" hidden onChange={scanFromPhoto} />
+      </div>
+      {error && <p className="banner banner--warn"><Alert size={18} /> {error}</p>}
+    </div>
+  );
+}
 
 function Steps({ status }) {
   const done = { placed: 1, preparing: 1, out_for_delivery: 2, delivered: 3 }[status] || 0;
@@ -110,7 +194,7 @@ export default function OrderPage() {
   });
   const deliver = () => run(() => api.deliver(id, { cashCollected: o.cashToCollect || undefined, lat: me?.lat, lng: me?.lng }), async () => {
     setConfirm(null);
-    toast(o.cashToCollect ? `Delivered. ${money(o.cashToCollect)} cash collected.` : 'Delivered. Great job!', 'good');
+    toast(o.cashToCollect ? `Delivered. ${money(o.cashToCollect)} collected.` : 'Delivered. Great job!', 'good');
     await refresh();
     navigate('/');
   });
@@ -132,6 +216,8 @@ export default function OrderPage() {
   }
 
   const cash = o.cashToCollect;
+  const photoDone = o.deliveryPhotos?.length > 0;
+  const proofDone = photoDone && o.barcodeChecked;
   const legLabel = beforePickup && o.mine && me ? 'to the kitchen' : 'to the customer';
 
   return (
@@ -195,9 +281,9 @@ export default function OrderPage() {
         <div className={`paybox ${cash > 0 ? 'paybox--cash' : 'paybox--paid'}`}>
           <Cash size={26} />
           {cash > 0 ? (
-            <div><b>Collect {money(cash)} in cash</b><span>Cash on delivery{o.walletUsed > 0 ? ` · ${money(o.walletUsed)} already paid from wallet` : ''}</span></div>
+            <div><b>Collect {money(cash)}</b><span>Pay on delivery · cash or UPI{o.walletUsed > 0 ? ` · ${money(o.walletUsed)} already paid from wallet` : ''}</span></div>
           ) : (
-            <div><b>Paid online · don’t collect cash</b><span>{o.paymentMethod} · bill {money(o.total)}</span></div>
+            <div><b>{o.paymentMethod === 'Wallet' ? 'Paid from BiteVo wallet' : 'Paid online'} · nothing to collect</b><span>Don’t take any money for this order</span></div>
           )}
         </div>
 
@@ -208,6 +294,9 @@ export default function OrderPage() {
               <b>Delivered at {clock(o.deliveredAt)}</b>
               <span>{o.deliveryMins} min after the order{o.cashCollected ? ` · ${money(o.cashCollected)} cash collected` : ''}</span>
               {o.rating && <span className="stars"><Star size={14} /> Rated {o.rating} by the customer</span>}
+              {o.deliveryPhotos?.length > 0 && (
+                <span className="proof__photos proof__photos--done">{o.deliveryPhotos.map(src => <img key={src} src={src} alt="Delivery photo" />)}</span>
+              )}
             </div>
           </div>
         )}
@@ -242,14 +331,15 @@ export default function OrderPage() {
           {fromDrop != null && fromDrop > FAR_FROM_DROP_M && (
             <p className="banner banner--warn"><Alert size={18} /> You’re {distance(fromDrop)} from the customer’s pin. Only confirm once you’ve handed the order over.</p>
           )}
+          <Proof o={o} onSaved={order.reload} />
           {cash > 0 ? (
             <label className="check">
               <input type="checkbox" checked={cashOk} onChange={e => setCashOk(e.target.checked)} />
-              <span>I collected <b>{money(cash)}</b> in cash from {o.customerName.split(' ')[0]}</span>
+              <span>I collected <b>{money(cash)}</b> (cash or UPI) from {o.customerName.split(' ')[0]}</span>
             </label>
-          ) : <p className="muted">Paid online. There’s nothing to collect.</p>}
-          <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy || (cash > 0 && !cashOk)} onClick={deliver}>
-            {busy ? <Spinner /> : 'Confirm delivery'}
+          ) : <p className="muted">Paid {o.paymentMethod === 'Wallet' ? 'from the wallet' : 'online'}. Don’t take any money.</p>}
+          <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy || !proofDone || (cash > 0 && !cashOk)} onClick={deliver}>
+            {busy ? <Spinner /> : proofDone ? 'Confirm delivery' : !photoDone ? 'Take a photo first' : 'Scan the barcode first'}
           </button>
           <button type="button" className="btn btn--ghost btn--block" onClick={() => setConfirm(null)}>Not yet</button>
         </Sheet>

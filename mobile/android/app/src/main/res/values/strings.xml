@@ -39,5 +39,7 @@
     <string name="need_location">Allow precise location for BiteVo Rider to go online. The BiteVo team follows your live position while you work.</string>
     <string name="location_is_off">Your phone’s Location is off. Turn it on and try again.</string>
     <string name="no_fix">Your phone can’t find its location. Turn on Location (GPS) and try again.</string>
+    <string name="scan_failed">The barcode scanner didn’t open. Update Google Play services and try again.</string>
+    <string name="no_camera">This phone has no camera app to take the photo with.</string>
     <string name="cant_start">Couldn’t start location sharing. Open BiteVo Rider and go online again.</string>
 </resources>

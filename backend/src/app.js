@@ -13,6 +13,8 @@ import { store } from './db/index.js';
 import { requireAgent } from './auth.js';
 import { errorHandler, badRequest, forbidden } from './lib/http.js';
 import { roadRoute } from './lib/routing.js';
+import { selfAssign } from './lib/settings.js';
+import { usesSupabase, photosDir } from './lib/photos.js';
 import { addDemoOrder } from './demo/seed.js';
 import { router as authRoutes } from './routes/auth.js';
 import { router as riderRoutes } from './routes/rider.js';
@@ -31,16 +33,19 @@ export function createApp() {
   if (config.trustProxy) app.set('trust proxy', 1);
   app.use(compression());
 
+  // With a Google Maps key the page also loads the Maps JavaScript API, which needs Google's own addresses.
+  const google = config.mapsKey ? ['https://*.googleapis.com', 'https://*.gstatic.com', '*.google.com'] : [];
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
-        'script-src': ["'self'"],
-        // Leaflet positions the map with inline styles.
-        'style-src': ["'self'", "'unsafe-inline'"],
-        'font-src': ["'self'", 'data:'],
-        // Map tiles come from the tile server (OpenStreetMap by default).
+        'script-src': ["'self'", ...google],
+        // Leaflet and Google Maps position the map with inline styles.
+        'style-src': ["'self'", "'unsafe-inline'", ...(config.mapsKey ? ['https://fonts.googleapis.com'] : [])],
+        'font-src': ["'self'", 'data:', ...(config.mapsKey ? ['https://fonts.gstatic.com'] : [])],
+        // Map tiles come from the tile server (OpenStreetMap by default) or Google.
         'img-src': ["'self'", 'data:', 'blob:', 'https:'],
-        'connect-src': ["'self'"],
+        'connect-src': ["'self'", ...google],
+        'worker-src': ["'self'", 'blob:'],
         'upgrade-insecure-requests': config.cookie.secure ? [] : null,
       },
     },
@@ -56,13 +61,15 @@ export function createApp() {
 
   app.get('/api/health', (req, res) => res.json({ ok: true, store: store.kind }));
   // What the app needs before sign-in.
-  app.get('/api/config', (req, res) => res.json({
+  app.get('/api/config', async (req, res) => res.json({
     kitchen: config.kitchen,
     supportPhone: config.supportPhone,
     otpDevMode: config.otpDevMode,
-    selfAssign: config.selfAssign,
+    selfAssign: await selfAssign(),
     maxActiveOrders: config.maxActiveOrders,
     routing: Boolean(config.routingUrl),
+    // The map is drawn with Google Maps when this is set (OpenStreetMap otherwise).
+    mapsKey: config.mapsKey || null,
     // Local JSON store with demo riders and orders (no MongoDB configured).
     demo: store.kind === 'file',
   }));
@@ -82,6 +89,9 @@ export function createApp() {
   });
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
+
+  // Delivery photos kept on this server when Supabase isn't set up (lib/photos.js).
+  if (!usesSupabase) app.use('/photos', express.static(photosDir, { index: false, maxAge: '30d', fallthrough: false }));
 
   const appIndex = path.join(config.clientDir, 'index.html');
   app.locals.servesApp = fs.existsSync(appIndex);

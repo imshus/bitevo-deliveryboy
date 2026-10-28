@@ -20,6 +20,13 @@
       "port": 4002
     },
     {
+      "name": "delivery-api-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["backend/src/server.js", "--port", "4002"],
+      "env": { "MONGODB_URI": "", "MONGO_DB_URL": "", "OTP_DEV_MODE": "true" },
+      "port": 4002
+    },
+    {
       "name": "delivery-app-lan",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--host"],

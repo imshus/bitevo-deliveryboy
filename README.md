@@ -57,14 +57,19 @@ zone and vehicle; set the ID check to Verified).
 - **Go online / offline.** Online needs a verified ID check and the phone's location. Offline isn't possible while
   carrying an order.
 - **Live map** of the rider, the kitchen, their drop points (numbered) and orders on offer nearby.
-- **Orders:** the ones the kitchen assigned to them (a chime and vibration when one arrives), and new orders in
-  their zone they can **accept** themselves (`SELF_ASSIGN`, up to `MAX_ACTIVE_ORDERS` at a time). Two riders can't
-  take the same order. Before pickup an order can be **handed back**.
+- **Orders:** the ones the kitchen assigned to them (a chime and vibration when one arrives), and, when the admin
+  panel allows self-assign, new orders in their zone they can **accept** themselves (up to `MAX_ACTIVE_ORDERS` at a
+  time). Two riders can't take the same order. Before pickup an order can be **handed back**.
 - **Order screen:** road route and time to the next stop (kitchen, then customer), the route driven so far, the
   customer's name, address, landmark and note, call and **Navigate** buttons (opens Google Maps), the items, and
-  what to collect ("Collect ₹518 in cash" or "Paid online · don't collect cash").
-- **Picked up** (when the kitchen is preparing it) → **Delivered**, confirming the cash taken on cash orders. A
-  warning shows when the rider is more than 250 m from the customer's pin.
+  what to collect: "Collect ₹518 · cash or UPI" on pay-on-delivery orders. Orders paid online or from the wallet
+  show no amount at all ("Paid online · nothing to collect"), and the API doesn't send their total to the rider.
+- **Picked up** (when the kitchen is preparing it) → **Delivered**. Delivering needs **proof at the door**, always:
+  1. one or more **camera photos** of the handover (up to 4; taken with the camera, never from the gallery),
+  2. the **barcode on the order's label** scanned (the kitchen prints it from the admin panel; it's the order
+     number). Another order's label or any other barcode is refused, and the panel counts wrong scans,
+  then the cash collected on pay-on-delivery orders. A warning shows when the rider is more than 250 m from the
+  customer's pin. The photos are saved to Supabase Storage and shown on the website's and the panel's order pages.
 - **Today:** deliveries, cash collected and distance travelled; **History** for today, 7 or 30 days with average
   time and rating; **Profile** with their details, location-sharing status and help numbers.
 
@@ -84,17 +89,22 @@ zone and vehicle; set the ID check to Verified).
   same app and keeps sharing with the screen off or another app open, with a "Sharing live location" notification,
   until the rider goes offline. It sends the same positions to the same endpoint.
 
-Maps use OpenStreetMap tiles through Leaflet (no key needed) and road routes from an OSRM server
-(`ROUTING_URL`; the public demo server is fine for trying it out, but for a real fleet host OSRM or use a paid
-routing service). Without routing the map draws straight lines. For a bigger fleet, use a tile provider too
-(`VITE_MAP_TILES` and `VITE_MAP_ATTRIBUTION` in `frontend/.env`).
+Maps use **Google Maps** when `GOOGLE_MAPS_BROWSER_KEY` (or `GOOGLE_MAPS_KEY`) is set, the same keys as the
+website's, with the Maps JavaScript API enabled; otherwise, or if Google refuses the key, OpenStreetMap tiles
+through Leaflet (no key needed). Road routes come from an OSRM server (`ROUTING_URL`; the public demo server is
+fine for trying it out, but for a real fleet host OSRM or use a paid routing service). Without routing the map
+draws straight lines.
+
+The customer sees the same live position: the website's order page shows the rider moving on a Google map while
+the order is out for delivery (refreshing every 8 s), and the photos taken at the door once it's delivered.
 
 ## How data lines up with the admin panel
 
 | Collection | This app | Notes |
 |---|---|---|
 | `agents` | reads; writes `status`, `location`, `odometer`, `onlineVia`, `onlineAt` | Riders are the panel's agents. `status` online / busy ("On delivery") / offline, as the panel shows it |
-| `orders` | reads; writes the rider's steps | Accept = the panel's "assign"; Picked up = `out_for_delivery` + `dispatchedAt`; Delivered = `delivered` + `deliveredAt`, `deliveryMins`, `cashCollected`, `deliveredFrom`. Each step goes into `history` with `by: "<name> (delivery app)"`, which the panel's order page already lists |
+| `orders` | reads; writes the rider's steps | Accept = the panel's "assign"; Picked up = `out_for_delivery` + `dispatchedAt`; Delivered = `delivered` + `deliveredAt`, `deliveryMins`, `cashCollected`, `deliveredFrom`. Proof of delivery: `deliveryPhotos` ([{ url, at, agentId, agentName }]), `barcodeCheckedAt`, `barcodeMismatches`. Each step goes into `history` with `by: "<name> (delivery app)"`, which the panel's order page already lists |
+| `settings` (`app`) | reads `deliverySelfAssign` | The panel's Live map switch: "Kitchen assigns" or "Riders can self-assign" (re-read every 15 s) |
 | `walletTxns` | writes | Coupon cashback on delivery, exactly as the panel's "Delivered" button does |
 | `sessions`, `loginEvents` | writes | `role: 'agent'`, shown on the panel's Login status page (and revocable there) |
 | `agentOtpCodes`, `riderTrack` | reads/writes | This app only |
@@ -108,7 +118,9 @@ order from the panel; the app picks up those changes within 10 seconds.
 |---|---|---|
 | `KITCHEN_LAT`, `KITCHEN_LNG`, `KITCHEN_NAME`, `KITCHEN_ADDRESS`, `KITCHEN_PHONE` | none | The pickup point on the map and order screen |
 | `SUPPORT_PHONE` | none | Profile → Call BiteVo support |
-| `SELF_ASSIGN` | `true` | `false`: only the panel assigns orders |
+| `SELF_ASSIGN` | `true` | Self-assign until the admin panel's switch (Live map → Waiting for a rider) is first used; the switch wins after that |
+| `GOOGLE_MAPS_KEY`, `GOOGLE_MAPS_BROWSER_KEY` | none | Google Maps for the app's map (else OpenStreetMap) |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_DELIVERY_BUCKET` | none, none, `bitevo-delivery-photos` | Where delivery photos go (the admin panel's Supabase project). Empty = `backend/data/photos` |
 | `MAX_ACTIVE_ORDERS` | `2` | Orders a rider can carry at once |
 | `OFFLINE_AFTER_MINS` | `20` | Silence before an idle rider is set offline |
 | `TRACK_KEEP_DAYS` | `30` | How long driven routes are kept |
@@ -146,8 +158,8 @@ Profile and the location line word their tips for the app. See `mobile/README.md
 ## Not built yet
 
 - **Tracking with the screen off on iPhones:** the Android app covers Android; iPhones use the web app (screen on).
-- **The customer seeing their rider:** positions are saved (`orders.riderLocation`), but the website's order tracking
-  doesn't show the rider on a map yet. (The admin panel's **Live map** page shows every online rider.)
+- **The rider on a map in the customer's Android app** (`../bitevomainwebsite/mobile`): the website shows it; the
+  app still lists the order's steps only. The admin panel's **Live map** is still on OpenStreetMap.
 - Push notifications when the app is closed (new orders chime only while it's open).
 - Rider pay and earnings, and cash deposits back to the kitchen.
 

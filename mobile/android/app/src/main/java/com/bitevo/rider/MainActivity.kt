@@ -1,7 +1,8 @@
 // The app's one screen: the rider web app (frontend/) in a WebView, plus what a web page can't do by itself:
 // asking for location access (also "Allow all the time") and running LocationService, which keeps sharing the
-// live location with the screen off. The page reaches it through `window.BiteVoRider` (Bridge below) and hears
-// back through `bitevo-rider` events; frontend/src/lib/tracker.js handles both.
+// live location with the screen off; the phone's camera for delivery photos; and Google's barcode scanner for
+// the order's label. The page reaches it through `window.BiteVoRider` (Bridge below) and hears back through
+// `bitevo-rider` events; frontend/src/lib/tracker.js and lib/proof.js handle them.
 package com.bitevo.rider
 
 import android.annotation.SuppressLint
@@ -13,6 +14,7 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -22,6 +24,7 @@ import android.view.inputmethod.EditorInfo
 import android.text.InputType
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -33,13 +36,23 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
+import androidx.core.content.FileProvider
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import org.json.JSONObject
+import java.io.File
+
+private const val REQ_PHOTO = 10
+private const val KEEP_PHOTOS_MS = 24 * 60 * 60_000L
 
 class MainActivity : Activity() {
     private lateinit var web: WebView
     private lateinit var errorView: View
     private lateinit var access: LocationAccess
     private var loadFailed = false
+    private var photoAnswer: ValueCallback<Array<Uri>>? = null // the page's file input waiting for the photo
+    private var photoUri: Uri? = null
     private lateinit var appUrl: String
     private val appOrigin get() = origin(appUrl)
 
@@ -88,6 +101,13 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_PHOTO) {
+            val uri = photoUri.takeIf { resultCode == RESULT_OK }
+            photoAnswer?.onReceiveValue(uri?.let { arrayOf(it) })
+            photoAnswer = null
+            photoUri = null
+            return
+        }
         access.onActivityResult(requestCode)
     }
 
@@ -113,6 +133,9 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun stopTracking() = fromPage { LocationService.stop(this@MainActivity) }
+
+        @JavascriptInterface
+        fun scanBarcode() = fromPage { this@MainActivity.scanBarcode() }
 
         private fun fromPage(action: () -> Unit) = runOnUiThread {
             if (origin(web.url.orEmpty()) == appOrigin) action()
@@ -142,6 +165,39 @@ class MainActivity : Activity() {
         if (LocationAccess.hasLocation(this)) start(null) else access.ensure(start)
     }
 
+    // The order's label, read by Google's scanner (from Google Play services: its own camera screen, so the app
+    // needs no camera permission). Answers { barcode }, { barcodeCancelled } or { barcodeError }.
+    private fun scanBarcode() {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_CODE_128, Barcode.FORMAT_CODE_39, Barcode.FORMAT_QR_CODE, Barcode.FORMAT_EAN_13, Barcode.FORMAT_DATA_MATRIX)
+            .enableAutoZoom()
+            .build()
+        GmsBarcodeScanning.getClient(this, options).startScan()
+            .addOnSuccessListener { tell(JSONObject().put("barcode", it.rawValue.orEmpty())) }
+            .addOnCanceledListener { tell(JSONObject().put("barcodeCancelled", true)) }
+            .addOnFailureListener { tell(JSONObject().put("barcodeError", getString(R.string.scan_failed))) }
+    }
+
+    // The page's "Take photo" (an <input type="file" capture>): the phone's camera app, never the gallery, so the
+    // photo is taken there and then. It's saved in the app's cache (kept a day) and handed to the page.
+    private fun takePhoto(answer: ValueCallback<Array<Uri>>) {
+        photoAnswer?.onReceiveValue(null)
+        val dir = File(cacheDir, "photos").apply { mkdirs() }
+        dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > KEEP_PHOTOS_MS }?.forEach { it.delete() }
+        val uri = FileProvider.getUriForFile(this, "$packageName.photos", File(dir, "photo-${System.currentTimeMillis()}.jpg"))
+        val camera = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            .putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try {
+            startActivityForResult(camera, REQ_PHOTO)
+            photoAnswer = answer
+            photoUri = uri
+        } catch (e: ActivityNotFoundException) {
+            answer.onReceiveValue(null)
+            tell(JSONObject().put("photoError", getString(R.string.no_camera)))
+        }
+    }
+
     // To the page, as a `bitevo-rider` event.
     private fun tell(data: JSONObject) {
         web.evaluateJavascript("window.dispatchEvent(new CustomEvent('bitevo-rider', { detail: $data }))", null)
@@ -165,7 +221,13 @@ class MainActivity : Activity() {
         if (Server.canChange) WebView.setWebContentsDebuggingEnabled(true)
 
         web.addJavascriptInterface(Bridge(), "BiteVoRider")
-        web.webChromeClient = WebChromeClient() // the page's confirm() and alert() dialogs
+        // The page's confirm() and alert() dialogs, and its photo inputs.
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(view: WebView, answer: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                takePhoto(answer)
+                return true
+            }
+        }
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 if (origin(request.url.toString()) == appOrigin) return false

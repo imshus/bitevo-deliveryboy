@@ -63,6 +63,18 @@ export const config = {
   trackKeepDays: Math.max(1, Number(process.env.TRACK_KEEP_DAYS) || 30),
   // Road routes for the map (an OSRM server). Empty = the map draws a straight line.
   routingUrl: (process.env.ROUTING_URL ?? 'https://router.project-osrm.org').trim().replace(/\/+$/, ''),
+  // Google Maps (Maps JavaScript API) for the app's map, the same keys as the website's. The browser key should be
+  // restricted to the app's address in Google Cloud; without it the server key is used (fine on localhost).
+  // Neither = OpenStreetMap.
+  mapsKey: (process.env.GOOGLE_MAPS_BROWSER_KEY || process.env.GOOGLE_MAPS_KEY || '').trim(),
+
+  // Delivery photos go to Supabase Storage (the admin panel's project): its URL and secret key, and the bucket.
+  // Without them they're kept on this server (lib/photos.js).
+  supabase: {
+    url: (process.env.SUPABASE_URL || '').trim().replace(/\/+$/, ''),
+    key: (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim(),
+    bucket: (process.env.SUPABASE_DELIVERY_BUCKET || 'bitevo-delivery-photos').trim(),
+  },
   // "Today" for the rider's stats: minutes ahead of UTC (India = 330).
   utcOffsetMins: num(process.env.UTC_OFFSET_MINS, 330),
 

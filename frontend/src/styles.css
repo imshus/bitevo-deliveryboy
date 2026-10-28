@@ -142,6 +142,11 @@ p.center { text-align: center; }
 .map .leaflet-container { font-family: inherit; background: #E8E4DE; }
 .map .leaflet-control-attribution { font-size: 10px; background: rgba(255,255,255,.75); }
 .map--order .leaflet-bottom { bottom: 18px; } /* above the panel's rounded top */
+/* Google's logo and terms sit at the map's bottom edge and must stay visible: the buttons go above them. */
+.map--google .map__canvas { font-family: inherit; }
+.map--order.map--google .map__canvas { bottom: 18px; }
+.map--google .map__buttons, .map--google .map__status { bottom: 34px; }
+.map--order.map--google .map__buttons, .map--order.map--google .map__status { bottom: 52px; }
 .map__buttons { position: absolute; right: 12px; bottom: 26px; z-index: 900; display: flex; flex-direction: column; gap: 10px; }
 .map__btn {
   width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--white); color: var(--ink);
@@ -301,6 +306,24 @@ p.center { text-align: center; }
 .sheet__title { font-size: 19px; }
 .check { display: flex; gap: 12px; align-items: center; background: var(--bg); border-radius: 12px; padding: 14px; font-size: 15px; cursor: pointer; }
 .check input { width: 24px; height: 24px; accent-color: var(--green); flex: none; }
+.sheet { max-height: 92dvh; overflow-y: auto; }
+
+/* Proof of delivery in the deliver sheet: photos, then the label's barcode. */
+.proof { display: flex; flex-direction: column; gap: 12px; }
+.proof__step { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.proof__step > b { display: flex; align-items: center; gap: 8px; font-size: 14.5px; margin-bottom: 10px; }
+.proof__step > b span { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--white); display: grid; place-items: center; font-size: 12px; flex: none; }
+.proof__step.is-done { border-color: #C8E6C9; background: var(--green-soft); }
+.proof__step.is-done > b span { background: var(--green); }
+.proof__photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.proof__photos img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; background: var(--bg); }
+.proof__add {
+  width: 72px; height: 72px; border-radius: 10px; border: 1.5px dashed #C9B8B8; background: var(--white); color: var(--ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: inherit; font-size: 11px; cursor: pointer;
+}
+.proof__ok { display: flex; align-items: center; gap: 6px; color: var(--green-dark); font-weight: 600; }
+.proof__photos--done { margin-top: 8px; }
+.proof__photos--done img { width: 56px; height: 56px; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { transform: translateY(40px); opacity: .5; } }
 
