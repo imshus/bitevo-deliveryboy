@@ -29,7 +29,9 @@ export default function Home() {
   const mine = orders.data?.mine || [];
   const available = orders.data?.available || [];
 
-  // A chime and a vibration for each new order assigned to the rider, or offered nearby.
+  // A chime and a vibration for each new order assigned to the rider, or offered nearby, and when the kitchen
+  // moves one of the rider's orders along in the admin panel (accepted, sent out, cancelled or given to someone else).
+  const statuses = useRef(null); // the rider's orders at the last check: id → { status, orderNo }
   useEffect(() => {
     if (!orders.data) return;
     const ids = new Set([...mine, ...available].map(o => o._id));
@@ -44,6 +46,27 @@ export default function Home() {
       }
     }
     seen.current = ids;
+
+    const before = statuses.current;
+    statuses.current = new Map(mine.map(o => [o._id, { status: o.status, orderNo: o.orderNo }]));
+    if (!before) return;
+    for (const o of mine) {
+      const was = before.get(o._id)?.status;
+      if (!was || was === o.status) continue;
+      const byKitchen = !/\(delivery app\)/.test(o.history.at(-1)?.by || '');
+      if (o.status === 'preparing') {
+        alertRider('The kitchen accepted your order', `${o.orderNo} · head to the kitchen to pick it up`);
+        toast(`${o.orderNo}: the kitchen accepted it. Head to the kitchen.`, 'good');
+      } else if (o.status === 'out_for_delivery' && byKitchen) {
+        alertRider('Order sent out', `${o.orderNo} is marked out for delivery`);
+        toast(`${o.orderNo} is now out for delivery. Take it to ${o.customerName}.`, 'good');
+      }
+    }
+    for (const [id, was] of before) {
+      if (mine.some(o => o._id === id) || was.status === 'out_for_delivery') continue; // still mine, or just delivered
+      alertRider('Order taken off your list', `${was.orderNo} was cancelled or given to another rider`);
+      toast(`${was.orderNo} was cancelled or given to another rider by the kitchen.`, 'error');
+    }
   }, [orders.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const accept = async order => {
