@@ -1,0 +1,63 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Where the app lives. The WebView opens appUrl (the rider web app, frontend/); the location service posts
+// to apiUrl + /api/rider/location. apiUrl is the same address unless the API is on another domain.
+// The default is the dev server as the Android emulator sees it (10.0.2.2 is the PC's own 127.0.0.1).
+//   gradlew assembleRelease -PappUrl=https://rider.bitevo.in
+def trimmed = { String url -> url.trim().replaceAll('/+$', '') }
+def appUrl = trimmed((findProperty('appUrl') ?: 'http://10.0.2.2:2003').toString())
+def apiUrl = trimmed((findProperty('apiUrl') ?: appUrl).toString())
+
+android {
+    namespace = 'com.bitevo.rider' // the code's package ("in" is a reserved word in Kotlin); the app ID stays in.bitevo.rider
+    compileSdk = 37
+    buildToolsVersion = '37.0.0'
+
+    defaultConfig {
+        applicationId = 'in.bitevo.rider'
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = '1.0'
+        buildConfigField 'String', 'APP_URL', "\"${appUrl}\""
+        buildConfigField 'String', 'API_URL', "\"${apiUrl}\""
+        // Plain http is allowed only when the app was built for an http address (the dev server).
+        manifestPlaceholders = [usesCleartextTraffic: String.valueOf(appUrl.startsWith('http:') || apiUrl.startsWith('http:'))]
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+    signingConfigs {
+        // React Native's public debug key, as in the customer app: fine for installing the APK directly.
+        // For the Play Store, make your own upload key and use it for release builds instead.
+        debug {
+            storeFile = file('debug.keystore')
+            storePassword = 'android'
+            keyAlias = 'androiddebugkey'
+            keyPassword = 'android'
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    testOptions {
+        unitTests.all {
+            // LocationSenderTest runs against a dev API only when given one: gradlew test -PtestApi=http://127.0.0.1:4002
+            systemProperty 'bitevo.testApi', (findProperty('testApi') ?: '').toString()
+            testLogging { events 'passed', 'skipped', 'failed'; showStandardStreams = true; exceptionFormat = 'full' }
+        }
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20250517' // Android's own org.json is only a stub in JVM tests
+}

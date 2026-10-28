@@ -1,0 +1,10 @@
+{
+  "name": "bitevo-rider-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BiteVo Rider for Android: the rider web app in a WebView, with a location service that keeps sharing the rider's position with the screen off.",
+  "scripts": {
+    "build:android": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1",
+    "test:sender": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1 -Test"
+  }
+}

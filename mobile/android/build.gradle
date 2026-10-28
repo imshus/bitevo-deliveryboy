@@ -1,0 +1,11 @@
+// The Android Gradle Plugin (with its built-in Kotlin) at the version the customer app's React Native
+// build uses, so Gradle's cache in D:\Android\gradle-home already has it.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:9.2.1'
+    }
+}

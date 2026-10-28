@@ -1,0 +1,14 @@
+{
+  "name": "bitevo-delivery",
+  "private": true,
+  "version": "1.0.0",
+  "description": "BiteVo delivery partner app: the API in backend/ and the rider app in frontend/. Hosts run npm install, npm run build and npm start from here.",
+  "scripts": {
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install --include=dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start"
+  },
+  "engines": {
+    "node": ">=20.19"
+  }
+}

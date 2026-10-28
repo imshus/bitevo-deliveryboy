@@ -1,0 +1,11 @@
+# Gradle and Android Studio
+android/.gradle/
+android/build/
+android/app/build/
+android/.kotlin/
+android/local.properties
+.idea/
+*.iml
+
+# The APK copied out by scripts/build-android.ps1
+/BiteVoRider.apk

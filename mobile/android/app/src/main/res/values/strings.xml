@@ -1,0 +1,43 @@
+<resources>
+    <string name="app_name">BiteVo Rider</string>
+
+    <string name="channel_live">Live location</string>
+    <string name="channel_live_about">Shown while your location is shared with BiteVo (while you’re online)</string>
+    <string name="channel_alerts">Location sharing stopped</string>
+    <string name="channel_alerts_about">When BiteVo stops sharing your location because you’re offline or signed out</string>
+
+    <string name="sharing_title">Sharing live location</string>
+    <string name="sharing_text">You’re online. BiteVo can see where you are until you go offline.</string>
+    <string name="sharing_waiting">No connection · %d positions waiting to send</string>
+    <string name="sharing_location_off">Your phone’s Location is off. Turn it on to keep sharing.</string>
+    <string name="stopped_title">Location sharing stopped</string>
+    <string name="signed_out">You’re signed out. Open BiteVo Rider to sign in again.</string>
+
+    <string name="error_title">Can’t reach BiteVo</string>
+    <string name="error_text">Check your internet connection and try again.</string>
+    <string name="try_again">Try again</string>
+    <string name="server_address">Test build: the app’s address</string>
+    <string name="server_address_use">Use this address</string>
+    <string name="server_address_wrong">Type an address like http://192.168.1.20:2003</string>
+
+    <string name="continue_">Continue</string>
+    <string name="not_now">Not now</string>
+    <string name="skip">Skip</string>
+    <string name="open_settings">Open settings</string>
+
+    <string name="ask_location_title">Share your location while online</string>
+    <string name="ask_location_text">While you’re online, BiteVo Rider sends your live location to the BiteVo team, also when the screen is off or you’re in another app, so the kitchen and customers know where their order is. It stops as soon as you go offline, and Android shows a “Sharing live location” notification while it’s on.\n\nOn the next screen, allow location and keep “Precise” on.</string>
+    <string name="ask_background_title">Keep sharing in the background</string>
+    <string name="ask_background_text">So sharing keeps going even if Android closes BiteVo Rider in the background, set Location to “%s” on the next screen, then come back.\n\nYou can still go online without it.</string>
+    <string name="ask_battery_title">Don’t let battery saver stop it</string>
+    <string name="ask_battery_text">Some phones stop apps in the background to save battery, which would cut off your location during a delivery. Allow BiteVo Rider to run in the background on the next screen.</string>
+    <string name="location_off_title">Turn on Location</string>
+    <string name="location_off_text">Your phone’s Location (GPS) is off. Turn it on to go online.</string>
+    <string name="blocked_title">Location is blocked</string>
+    <string name="blocked_text">BiteVo Rider needs your precise location to go online. In Settings, open Permissions → Location, choose “%s” (or “Allow only while using the app”) and turn on “Use precise location”.</string>
+
+    <string name="need_location">Allow precise location for BiteVo Rider to go online. The BiteVo team follows your live position while you work.</string>
+    <string name="location_is_off">Your phone’s Location is off. Turn it on and try again.</string>
+    <string name="no_fix">Your phone can’t find its location. Turn on Location (GPS) and try again.</string>
+    <string name="cant_start">Couldn’t start location sharing. Open BiteVo Rider and go online again.</string>
+</resources>

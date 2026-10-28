@@ -1,0 +1,26 @@
+{
+  "name": "bitevo-delivery-backend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "BiteVo delivery partner app API (Node.js + Express + MongoDB). Shares its database with the admin panel.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js --port 4002",
+    "start": "node src/server.js",
+    "seed": "node src/seed.js"
+  },
+  "dependencies": {
+    "compression": "^1.8.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "mongodb": "^6.12.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

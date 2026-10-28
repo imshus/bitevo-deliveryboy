@@ -1,0 +1,15 @@
+{
+  "name": "BiteVo Delivery Partner",
+  "short_name": "BiteVo Rider",
+  "description": "Orders, live map and location sharing for BiteVo delivery partners.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#B71C1C",
+  "icons": [
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
