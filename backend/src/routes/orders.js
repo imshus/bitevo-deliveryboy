@@ -15,6 +15,7 @@ import { imageKind, saveDeliveryPhoto } from '../lib/photos.js';
 export const router = Router();
 
 const AVAILABLE_FOR_MS = 12 * 60 * MIN; // older unassigned orders aren't offered to riders
+const MAX_OFFERED = 30; // the newest waiting orders a rider is offered at once
 const round = (n, d = 1) => Math.round(n * 10 ** d) / 10 ** d;
 const firstName = name => String(name || '').trim().split(/\s+/)[0] || 'Customer';
 
@@ -89,7 +90,9 @@ router.get('/', async (req, res) => {
   const mine = await store.find('orders', { agentId: agent._id, status: { $in: LIVE_STATUSES } }, { sort: { placedAt: 1 } });
   const self = await selfAssign();
   const offer = self && canTakeOrders(agent);
-  const available = offer ? await store.find('orders', availableFilter(agent), { sort: { placedAt: 1 }, limit: 30 }) : [];
+  // Newest first: with many older orders still waiting (never accepted by the kitchen), a new one must still be in
+  // the list. Oldest first with the limit, riders saw only those old ones.
+  const available = offer ? await store.find('orders', availableFilter(agent), { sort: { placedAt: -1 }, limit: MAX_OFFERED }) : [];
   // Out for delivery first, then the oldest.
   const rank = o => (o.status === 'out_for_delivery' ? 0 : 1);
   mine.sort((a, b) => rank(a) - rank(b) || a.placedAt.localeCompare(b.placedAt));
