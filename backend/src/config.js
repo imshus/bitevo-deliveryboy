@@ -54,7 +54,7 @@ export const config = {
   } : null,
   supportPhone: process.env.SUPPORT_PHONE || '',
 
-  // Riders may pick unassigned orders in their zone themselves (SELF_ASSIGN=false: only the panel assigns).
+  // Riders may pick unassigned orders themselves (SELF_ASSIGN=false: only the panel assigns).
   selfAssign: process.env.SELF_ASSIGN !== 'false',
   maxActiveOrders: Math.max(1, Number(process.env.MAX_ACTIVE_ORDERS) || 2),
   // A rider who went online in the app and sent no position for this long is set offline.

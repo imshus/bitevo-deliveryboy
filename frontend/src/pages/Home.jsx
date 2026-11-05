@@ -42,7 +42,7 @@ export default function Home() {
         alertRider('New order assigned to you', `${assigned.orderNo} · ${assigned.address.area || assigned.address.line2}`);
         toast(`New order assigned: ${assigned.orderNo}`, 'good');
       } else if (offered && online) {
-        alertRider('New order near you', `${plural(offered.itemCount, 'item')} · ${offered.address.area || offered.zone}`);
+        alertRider('New order near you', `${plural(offered.itemCount, 'item')} · ${offered.address.area || offered.address.line2}`);
       }
     }
     seen.current = ids;
@@ -94,7 +94,7 @@ export default function Home() {
 
   const stops = [
     ...mine.map((o, i) => ({ id: o._id, lat: o.address.lat, lng: o.address.lng, label: `${i + 1}. ${o.customerName}`, number: i + 1, active: true })),
-    ...(online ? available.map(o => ({ id: o._id, lat: o.address.lat, lng: o.address.lng, label: `New order · ${o.address.area || o.zone}` })) : []),
+    ...(online ? available.map(o => ({ id: o._id, lat: o.address.lat, lng: o.address.lng, label: `New order · ${o.address.area || o.address.line2}` })) : []),
   ];
   const blockedReason = !online ? 'Go online to accept' : orders.data?.slotsLeft === 0 ? 'Deliver your orders first' : null;
   const t = today.data;
@@ -106,7 +106,7 @@ export default function Home() {
           <span className="avatar">{initials(agent.name)}</span>
           <span className="who__text">
             <b>Hi, {agent.name.split(' ')[0]}</b>
-            <small>{agent.zone} · {agent.vehicleType}</small>
+            {agent.vehicleType && <small>{agent.vehicleType}</small>}
           </span>
         </Link>
         <OnlineSwitch />
@@ -155,7 +155,7 @@ export default function Home() {
             <h2 className="block__title">New orders near you {available.length > 0 && <span className="count count--live">{available.length}</span>}</h2>
             {available.length
               ? available.map(o => <OfferCard key={o._id} order={o} now={now} onAccept={accept} busy={accepting === o._id} blockedReason={blockedReason} />)
-              : <p className="muted small">No orders waiting in {agent.zone} right now.</p>}
+              : <p className="muted small">No orders waiting right now.</p>}
           </section>
         )}
 

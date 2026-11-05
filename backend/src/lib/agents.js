@@ -1,4 +1,4 @@
-// Delivery agents (riders) as the admin panel keeps them: name, phone, zone, vehicle, ID check
+// Delivery agents (riders) as the admin panel keeps them: name, phone, vehicle, ID check
 // (`kycStatus`), `isActive`, and `status` online / busy (on a delivery) / offline.
 import { store } from '../db/index.js';
 import { nowIso } from './http.js';
@@ -12,7 +12,6 @@ export const publicAgent = a => ({
   name: a.name,
   phone: a.phone,
   email: a.email || '',
-  zone: a.zone,
   vehicleType: a.vehicleType,
   vehicleNumber: a.vehicleNumber || '',
   kycStatus: a.kycStatus,

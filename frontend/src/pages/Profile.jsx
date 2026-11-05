@@ -40,7 +40,6 @@ export default function Profile() {
 
         <div className="card">
           <dl className="details">
-            <div><dt><Store size={18} /> Zone</dt><dd>{agent.zone}</dd></div>
             <div><dt><Bike size={18} /> Vehicle</dt><dd>{agent.vehicleType}{agent.vehicleNumber && ` · ${agent.vehicleNumber}`}</dd></div>
             <div><dt><Shield size={18} /> ID check</dt><dd className={`id-${agent.kycStatus}`}>{ID_CHECK[agent.kycStatus] || agent.kycStatus}</dd></div>
           </dl>

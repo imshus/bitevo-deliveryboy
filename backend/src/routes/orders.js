@@ -1,5 +1,5 @@
 // The rider's orders. The kitchen (admin panel) accepts an order (placed → preparing) and assigns a rider,
-// or a rider in that zone takes it here when self-assign is on (the panel's switch, else SELF_ASSIGN). The rider then marks it picked up
+// or any rider takes it here when self-assign is on (the panel's switch, else SELF_ASSIGN). The rider then marks it picked up
 // (→ out_for_delivery) and delivered, the same steps the panel's buttons make, recorded in the order's
 // history so the panel shows who did what.
 import express, { Router } from 'express';
@@ -30,7 +30,6 @@ function riderOrder(o, agent) {
     placedAt: o.placedAt,
     status: o.status,
     mine,
-    zone: o.zone,
     items: (o.items || []).map(it => ({ name: it.name, qty: it.qty })),
     itemCount: (o.items || []).reduce((s, it) => s + (it.qty || 1), 0),
     // The bill only when the rider collects it: paid online or from the wallet, they never see an amount.
@@ -63,7 +62,6 @@ const availableFilter = agent => ({
   agentId: null,
   status: { $in: BEFORE_PICKUP },
   placedAt: { $gte: new Date(Date.now() - AVAILABLE_FOR_MS).toISOString() },
-  ...(agent.zone && { zone: agent.zone }),
 });
 
 const historyEvent = (agent, event) => ({ ...event, at: nowIso(), by: `${agent.name} (delivery app)` });
@@ -114,7 +112,7 @@ router.get('/:id', async (req, res) => {
   const order = await store.findById('orders', req.params.id);
   const agent = req.agent;
   const visible = order && (order.agentId === agent._id
-    || (!order.agentId && (await selfAssign()) && BEFORE_PICKUP.includes(order.status) && (!agent.zone || order.zone === agent.zone)));
+    || (!order.agentId && (await selfAssign()) && BEFORE_PICKUP.includes(order.status)));
   if (!visible) throw notFound('This order isn’t available any more.');
   res.json(riderOrder(order, agent));
 });
@@ -137,7 +135,7 @@ router.post('/:id/accept', async (req, res) => {
   if (active >= config.maxActiveOrders) throw badRequest(`You can carry up to ${config.maxActiveOrders} orders at a time. Deliver one first.`);
 
   const saved = await store.updateWhere('orders', { ...availableFilter(agent), _id: req.params.id },
-    { agentId: agent._id, agentName: agent.name, zone: agent.zone, updatedAt: nowIso() },
+    { agentId: agent._id, agentName: agent.name, updatedAt: nowIso() },
     { push: { history: historyEvent(agent, { status: 'assigned', note: agent.name }) } });
   if (!saved) throw await whyNot(req.params.id, agent);
   res.json(riderOrder(saved, agent));

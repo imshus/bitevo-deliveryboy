@@ -6,8 +6,6 @@ import { objectId } from '../lib/ids.js';
 import { startOfDay } from '../lib/rules.js';
 import { MIN } from '../lib/http.js';
 
-const ZONES = ['North Zone', 'South Zone', 'East Zone', 'West Zone', 'Central'];
-const ZONE = 'Central';
 
 export const DEMO_RIDERS = [
   { name: 'Ravi Kumar', phone: '+91 98765 00001', vehicleType: 'Bike', vehicleNumber: 'HR26 DK 4521', kycStatus: 'verified' },
@@ -59,9 +57,9 @@ function demoOrder({ i, now, minsAgo, status, payment, rider, extra = {} }) {
     customerId: `demo-customer-${i % CUSTOMERS.length}`, customerName, customerPhone,
     items, subtotal, deliveryFee: 20, discount: 0, cashback: 0, couponCode: null, total,
     paymentMethod: payment, walletUsed: payment === 'Cash on delivery' && i % 4 === 3 ? 50 : payment === 'Wallet' ? total : 0,
-    status, agentId: rider?._id ?? null, agentName: rider?.name ?? null, zone: ZONE,
+    status, agentId: rider?._id ?? null, agentName: rider?.name ?? null,
     deliveryMins: null, rating: null, isFirstOrder: false, refund: null, history: [],
-    address: { label: 'Home', zone: ZONE, mapAddress: `${place.line1}, ${place.line2}`, ...place },
+    address: { label: 'Home', mapAddress: `${place.line1}, ${place.line2}`, ...place },
     note: NOTES[i % NOTES.length], source: 'web', demo: true,
     updatedAt: new Date(at).toISOString(),
     ...extra,
@@ -99,10 +97,10 @@ export async function seedDemoIfEmpty() {
   const now = Date.now();
   const at = new Date(now).toISOString();
 
-  await store.insert('settings', { _id: 'app', zones: ZONES, vehicleTypes: ['Bike', 'Scooter', 'E-bike', 'Bicycle'], updatedAt: at });
+  await store.insert('settings', { _id: 'app', vehicleTypes: ['Bike', 'Scooter', 'E-bike', 'Bicycle'], updatedAt: at });
   const riders = [];
   for (const r of DEMO_RIDERS) {
-    riders.push(await store.insert('agents', { ...r, email: '', zone: ZONE, isActive: true, status: 'offline', demo: true, createdAt: at, updatedAt: at }));
+    riders.push(await store.insert('agents', { ...r, email: '', isActive: true, status: 'offline', demo: true, createdAt: at, updatedAt: at }));
   }
   for (const [name, phone] of CUSTOMERS) await store.insert('customers', { name, phone, createdAt: at, demo: true });
   const [ravi] = riders;

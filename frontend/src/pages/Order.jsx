@@ -262,7 +262,7 @@ export default function OrderPage() {
             navUrl={['delivered', 'cancelled'].includes(o.status) ? null : directionsUrl(drop, addressLine(o.address))}
             far={carrying ? fromDrop : null} />
         ) : (
-          <Stop icon={<Pin />} title="Deliver to" name={o.address.area || o.address.line2 || o.zone}
+          <Stop icon={<Pin />} title="Deliver to" name={o.address.area || o.address.line2}
             lines={[o.tripKm != null ? `${o.tripKm} km from the kitchen` : '', 'Full address and phone number show once you accept.']} />
         )}
         {o.mine && carrying && !drop && (

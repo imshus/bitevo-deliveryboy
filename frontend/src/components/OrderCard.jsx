@@ -44,7 +44,7 @@ export function OfferCard({ order, onAccept, busy, blockedReason, now }) {
     <div className="ocard ocard--offer">
       <Link to={`/orders/${order._id}`} className="ocard__link">
         <div className="ocard__top">
-          <span className="ocard__area">{order.address.area || order.address.line2 || order.zone}</span>
+          <span className="ocard__area">{order.address.area || order.address.line2}</span>
           <span className="ocard__no">{ago(order.placedAt, now)}</span>
         </div>
         <div className="ocard__main">

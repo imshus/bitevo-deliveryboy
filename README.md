@@ -46,8 +46,8 @@ Demo riders (sign-in codes are shown on screen while `OTP_DEV_MODE=true`):
 
 **To use the real data**, put the same `MONGO_DB_URL` / `MONGO_DB_USER` / `MONGO_DB_PASSWORD` /
 `MONGO_DB_NAME` as `../bitevoadminpanel/backend/.env` into `backend/.env`, set `KITCHEN_LAT` / `KITCHEN_LNG`
-to the kitchen's real position, and add riders in the admin panel (Team → Add agent, with their mobile number,
-zone and vehicle; set the ID check to Verified).
+to the kitchen's real position, and add riders in the admin panel (Team → Add agent, with their mobile number
+and vehicle; set the ID check to Verified).
 
 ## What riders can do
 
@@ -58,7 +58,7 @@ zone and vehicle; set the ID check to Verified).
   carrying an order.
 - **Live map** of the rider, the kitchen, their drop points (numbered) and orders on offer nearby.
 - **Orders:** the ones the kitchen assigned to them (a chime and vibration when one arrives), and, when the admin
-  panel allows self-assign, new orders in their zone they can **accept** themselves (up to `MAX_ACTIVE_ORDERS` at a
+  panel allows self-assign, any new order they can **accept** themselves (up to `MAX_ACTIVE_ORDERS` at a
   time). Two riders can't take the same order. Before pickup an order can be **handed back**.
 - **Order screen:** road route and time to the next stop (kitchen, then customer), the route driven so far, the
   customer's name, address, landmark and note, call and **Navigate** buttons (opens Google Maps), the items, and
