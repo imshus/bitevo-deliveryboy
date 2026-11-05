@@ -36,8 +36,10 @@ class LocationAccess(private val activity: Activity) {
         private const val ASKED_BACKGROUND = "askedBackground"
         private const val ASKED_NOTIFICATIONS = "askedNotifications"
         private const val ASKED_BATTERY = "askedBattery"
-        private const val FIX_WAIT_MS = 20_000L
-        private const val LAST_KNOWN_MS = 2 * 60_000L
+        // A GPS starting cold, or near a window, can take most of a minute for its first position.
+        private const val FIX_WAIT_MS = 45_000L
+        private const val LAST_KNOWN_MS = 5 * 60_000L
+        private const val GOOGLE_LOCATION_ACCURACY = "com.google.android.gms.location.settings.GOOGLE_LOCATION_ACCURACY"
 
         fun hasLocation(context: Context) = context.checkSelfPermission(ACCESS_FINE_LOCATION) == PERMISSION_GRANTED
     }
@@ -132,14 +134,17 @@ class LocationAccess(private val activity: Activity) {
         }
     }
 
-    // One position for going online: the first from the GPS or the network within FIX_WAIT_MS, or else the
-    // phone's last known position if it's recent. Null if there's none.
+    // One position for going online: the first from the GPS, the network or (Android 12+) the fused provider
+    // within FIX_WAIT_MS, or else the phone's last known position if it's recent. Null if there's none.
     @SuppressLint("MissingPermission") // called once location is allowed
     fun firstFix(then: (Location?) -> Unit) {
         val manager = activity.getSystemService(LocationManager::class.java)
         val handler = Handler(Looper.getMainLooper())
-        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .filter { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
+        val providers = listOfNotNull(
+            LocationManager.GPS_PROVIDER,
+            LocationManager.NETWORK_PROVIDER,
+            if (Build.VERSION.SDK_INT >= 31) LocationManager.FUSED_PROVIDER else null,
+        ).filter { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
         var answered = false
         lateinit var listener: LocationListener
         fun answer(location: Location?) {
@@ -159,11 +164,34 @@ class LocationAccess(private val activity: Activity) {
         }
         for (provider in providers) runCatching { manager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper()) }
         handler.postDelayed({
-            val recent = providers.mapNotNull { runCatching { manager.getLastKnownLocation(it) }.getOrNull() }
+            val recent = (providers + LocationManager.PASSIVE_PROVIDER)
+                .mapNotNull { runCatching { manager.getLastKnownLocation(it) }.getOrNull() }
                 .filter { System.currentTimeMillis() - it.time < LAST_KNOWN_MS }
                 .maxByOrNull { it.time }
             answer(recent)
         }, FIX_WAIT_MS)
+    }
+
+    // No position in time. With Location on, that's usually GPS alone indoors: the phone's Wi-Fi positioning
+    // (Google Location Accuracy) is off, so the network provider is too. Then say so and offer its settings.
+    // Calls `then` with the message for the page.
+    fun noFix(then: (String) -> Unit) {
+        val manager = activity.getSystemService(LocationManager::class.java)
+        val wifiPositioning = runCatching { manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) }.getOrDefault(false)
+        if (wifiPositioning) return then(text(R.string.no_fix))
+        explain(R.string.no_fix_title, text(R.string.no_fix_gps_only_text), R.string.open_settings, R.string.not_now) { ok ->
+            if (ok) openAccuracySettings()
+            then(text(R.string.no_fix_gps_only))
+        }
+    }
+
+    // Google's own "Location Accuracy" page where Play services has one, else the phone's Location settings.
+    private fun openAccuracySettings() {
+        try {
+            activity.startActivity(Intent(GOOGLE_LOCATION_ACCURACY))
+        } catch (e: ActivityNotFoundException) {
+            open(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+        }
     }
 
     private fun locationOn(): Boolean {
