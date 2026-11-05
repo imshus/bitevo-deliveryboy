@@ -148,7 +148,9 @@ class MainActivity : Activity() {
             if (problem != null) return@ensure tell(JSONObject().put("locationError", problem).put("permission", access.state()))
             access.firstFix { location ->
                 val p = location?.toPoint()
-                if (p == null) return@firstFix tell(JSONObject().put("locationError", getString(R.string.no_fix)).put("permission", "granted"))
+                if (p == null) return@firstFix access.noFix { message ->
+                    tell(JSONObject().put("locationError", message).put("permission", "granted"))
+                }
                 Tracker.position = p
                 tell(JSONObject().put("position", p.toJson()).put("permission", "granted").put("gpsProblem", JSONObject.NULL))
             }

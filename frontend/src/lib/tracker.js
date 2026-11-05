@@ -181,8 +181,10 @@ export function askForLocation() {
       onGpsError(e);
       reject(new Error(e.code === 1
         ? 'Allow location for this app to go online. The BiteVo team follows your live position while you work.'
-        : 'Your phone can’t find its location. Turn on Location (GPS) and try again.'));
-    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 });
+        : e.code === 3
+          ? 'Your phone couldn’t find where you are. Step outside or near a window for a minute, then try again.'
+          : 'Your phone can’t find its location. Turn on Location (GPS) and try again.'));
+    }, { enableHighAccuracy: true, timeout: 45000, maximumAge: 10000 });
   });
 }
 

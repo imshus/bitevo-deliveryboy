@@ -11,6 +11,7 @@ export function OnlineSwitch() {
   const { agent, setAgent } = useSession();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [locating, setLocating] = useState(false);
   const online = agent.status !== 'offline';
 
   const toggle = async () => {
@@ -19,8 +20,13 @@ export function OnlineSwitch() {
       if (!online) {
         unlockSound();
         askToNotify();
-        // Location first: going online means sharing it.
-        await askForLocation();
+        // Location first: going online means sharing it. Finding it can take most of a minute indoors.
+        setLocating(true);
+        try {
+          await askForLocation();
+        } finally {
+          setLocating(false);
+        }
       }
       const r = await api.setOnline(!online);
       setAgent(r.agent);
@@ -36,7 +42,7 @@ export function OnlineSwitch() {
     <button type="button" role="switch" aria-checked={online} disabled={busy || !agent.canTakeOrders}
       className={`switch${online ? ' is-on' : ''}${busy ? ' is-busy' : ''}`} onClick={toggle}>
       <span className="switch__track"><span className="switch__thumb" /></span>
-      <span className="switch__label">{online ? (agent.status === 'busy' ? 'On delivery' : 'Online') : 'Offline'}</span>
+      <span className="switch__label">{locating ? 'Locating…' : online ? (agent.status === 'busy' ? 'On delivery' : 'Online') : 'Offline'}</span>
     </button>
   );
 }
