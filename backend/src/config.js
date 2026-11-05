@@ -67,6 +67,10 @@ export const config = {
   // restricted to the app's address in Google Cloud; without it the server key is used (fine on localhost).
   // Neither = OpenStreetMap.
   mapsKey: (process.env.GOOGLE_MAPS_BROWSER_KEY || process.env.GOOGLE_MAPS_KEY || '').trim(),
+  // Google's Geolocation API: where a rider's phone is from the Wi-Fi networks around it, when its GPS can't find
+  // it (indoors with Wi-Fi positioning off). A server key with the Geolocation API enabled; without
+  // GOOGLE_GEOLOCATION_KEY the server maps key is used. Neither = the app waits for the GPS.
+  geolocationKey: (process.env.GOOGLE_GEOLOCATION_KEY || process.env.GOOGLE_MAPS_KEY || '').trim(),
 
   // Delivery photos go to Supabase Storage (the admin panel's project): its URL and secret key, and the bucket.
   // Without them they're kept on this server (lib/photos.js).

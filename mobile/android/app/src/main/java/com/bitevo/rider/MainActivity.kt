@@ -137,23 +137,27 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun scanBarcode() = fromPage { this@MainActivity.scanBarcode() }
 
+        @JavascriptInterface
+        fun openLocationSettings() = fromPage { access.openSettings() }
+
         private fun fromPage(action: () -> Unit) = runOnUiThread {
             if (origin(web.url.orEmpty()) == appOrigin) action()
         }
     }
 
-    // Going online: location access first, then one position (the page sends it with "I'm online").
+    // Going online: location access first, then straight on ({ located }). The page puts the rider online with
+    // the API at once and the location service finds the position (GPS, network, or Wi-Fi through the API); a
+    // recent one the phone already has goes along now. A page from before this waits for { position } or
+    // { locationError }, so build the web app first, then the APK.
     private fun askForLocation() {
         access.ensure { problem ->
             if (problem != null) return@ensure tell(JSONObject().put("locationError", problem).put("permission", access.state()))
-            access.firstFix { location ->
-                val p = location?.toPoint()
-                if (p == null) return@firstFix access.noFix { message ->
-                    tell(JSONObject().put("locationError", message).put("permission", "granted"))
-                }
-                Tracker.position = p
-                tell(JSONObject().put("position", p.toJson()).put("permission", "granted").put("gpsProblem", JSONObject.NULL))
-            }
+            val p = access.lastKnown()?.toPoint()
+            if (p != null) Tracker.position = p
+            tell(
+                JSONObject().put("located", true).put("position", p?.toJson() ?: JSONObject.NULL)
+                    .put("permission", "granted").put("gpsProblem", JSONObject.NULL),
+            )
         }
     }
 
