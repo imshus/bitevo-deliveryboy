@@ -1,8 +1,8 @@
 // The app's one screen: the rider web app (frontend/) in a WebView, plus what a web page can't do by itself:
 // asking for location access (also "Allow all the time") and running LocationService, which keeps sharing the
-// live location with the screen off; the phone's camera for delivery photos; and Google's barcode scanner for
-// the order's label. The page reaches it through `window.BiteVoRider` (Bridge below) and hears back through
-// `bitevo-rider` events; frontend/src/lib/tracker.js and lib/proof.js handle them.
+// live location with the screen off; and the phone's camera for delivery photos. The page reaches it through
+// `window.BiteVoRider` (Bridge below) and hears back through `bitevo-rider` events, which
+// frontend/src/lib/tracker.js handles.
 package com.bitevo.rider
 
 import android.annotation.SuppressLint
@@ -38,9 +38,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
 import androidx.core.content.FileProvider
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import org.json.JSONObject
 import java.io.File
 
@@ -136,9 +133,6 @@ class MainActivity : Activity() {
         fun stopTracking() = fromPage { LocationService.stop(this@MainActivity) }
 
         @JavascriptInterface
-        fun scanBarcode() = fromPage { this@MainActivity.scanBarcode() }
-
-        @JavascriptInterface
         fun openLocationSettings() = fromPage { access.openSettings() }
 
         private fun fromPage(action: () -> Unit) = runOnUiThread {
@@ -170,19 +164,6 @@ class MainActivity : Activity() {
             else tell(Tracker.state().put("permission", access.state()).put("gpsProblem", problem ?: getString(R.string.cant_start)))
         }
         if (LocationAccess.hasLocation(this)) start(null) else access.ensure(start)
-    }
-
-    // The order's label, read by Google's scanner (from Google Play services: its own camera screen, so the app
-    // needs no camera permission). Answers { barcode }, { barcodeCancelled } or { barcodeError }.
-    private fun scanBarcode() {
-        val options = GmsBarcodeScannerOptions.Builder()
-            .setBarcodeFormats(Barcode.FORMAT_CODE_128, Barcode.FORMAT_CODE_39, Barcode.FORMAT_QR_CODE, Barcode.FORMAT_EAN_13, Barcode.FORMAT_DATA_MATRIX)
-            .enableAutoZoom()
-            .build()
-        GmsBarcodeScanning.getClient(this, options).startScan()
-            .addOnSuccessListener { tell(JSONObject().put("barcode", it.rawValue.orEmpty())) }
-            .addOnCanceledListener { tell(JSONObject().put("barcodeCancelled", true)) }
-            .addOnFailureListener { tell(JSONObject().put("barcodeError", getString(R.string.scan_failed))) }
     }
 
     // The page's "Take photo" (an <input type="file" capture>): the phone's camera app, never the gallery, so the

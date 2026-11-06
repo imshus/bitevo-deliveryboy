@@ -92,9 +92,7 @@ Reading the Wi-Fi networks around the phone (for finding it indoors, below) need
 covers it, plus `ACCESS_WIFI_STATE` / `CHANGE_WIFI_STATE`, which Android grants on install.
 
 Proof of delivery needs no extra permission: **photos** are taken with the phone's own camera app (never picked from
-the gallery) and saved in the app's cache for a day; the **order label's barcode** is read by Google's code scanner
-from Google Play services, which shows its own camera screen (the phone needs Google Play services, as nearly all
-Android phones in India have).
+the gallery) and saved in the app's cache for a day.
 
 Riders can change them later in Settings → Apps → BiteVo Rider. Many phones (Xiaomi, Oppo, Vivo, Realme,
 OnePlus, Samsung) also stop background apps on their own: set Battery to **Unrestricted** / **No restrictions**,
@@ -132,9 +130,7 @@ turn on **Autostart** where there is one, and on Samsung don't put the app in "S
 - **If Android kills the app**, it restarts the service, which carries on until the API says the rider is
   offline. After the phone restarts, sharing begins again when the rider opens the app.
 - **At the door** the page's "Take photo" opens the camera app (`onShowFileChooser` → `ACTION_IMAGE_CAPTURE`, the
-  photo saved through a `FileProvider`), and "Scan barcode" calls `window.BiteVoRider.scanBarcode()`, which opens
-  Google's scanner and answers with a `bitevo-rider` event `{ barcode }` (or `{ barcodeCancelled }` /
-  `{ barcodeError }`). The API checks the barcode against the order.
+  photo saved through a `FileProvider`).
 - The page sleeps while the app isn't on screen (it doesn't poll for orders then; the service keeps sharing).
   Back goes back in the web app, and from its home screen leaves the app running. Phone numbers and Google Maps
   directions open in the phone's own apps.

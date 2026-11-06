@@ -57,7 +57,6 @@ export const api = {
   release: id => post(`/orders/${id}/release`),
   pickup: id => post(`/orders/${id}/pickup`),
   deliveryPhoto: (id, photo) => request(`/orders/${id}/photo`, { method: 'POST', file: photo }),
-  scanLabel: (id, code) => post(`/orders/${id}/scan`, { code }),
   deliver: (id, body) => post(`/orders/${id}/deliver`, body),
 
   route: (from, to) => request(`/route?from=${from.lat},${from.lng}&to=${to.lat},${to.lng}`),

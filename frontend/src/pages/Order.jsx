@@ -1,8 +1,7 @@
 // One order: a map with the road route to the next stop (the kitchen before pickup, the customer after)
 // and the route driven so far; the customer, their address and note, call and navigate buttons, what to
 // collect (an amount only when the customer pays on delivery); and the next step (accept → picked up →
-// delivered). Delivering takes proof at the door: camera photos of the handover, then the barcode on the
-// order's label (lib/proof.js).
+// delivered). Delivering takes proof at the door: camera photos of the handover (lib/proof.js).
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
@@ -15,19 +14,16 @@ import { money, when, clock, distance, duration, telLink, plural } from '../lib/
 import LiveMap from '../components/LiveMap.jsx';
 import { LocationLine } from '../components/LiveStatus.jsx';
 import { Sheet, Spinner, StatusChip, useToast } from '../components/ui.jsx';
-import { Back, Barcode, Camera, Cash, Check, Navigate, Note, Phone, Pin, Store, Alert, Star } from '../components/Icons.jsx';
-import { scanInApp, scanPhoto, scansFromPhoto, scansInApp, shrinkPhoto } from '../lib/proof.js';
+import { Back, Camera, Cash, Check, Navigate, Note, Phone, Pin, Store, Alert, Star } from '../components/Icons.jsx';
+import { shrinkPhoto } from '../lib/proof.js';
 
 const FAR_FROM_DROP_M = 250;
 const MAX_PHOTOS = 4;
 
-// At the door: 1. photos of the handover, 2. the barcode on the order's label. Each is saved on the order
-// straight away (the API checks the barcode), so `o` always says what's done.
+// At the door: photos of the handover, each saved on the order straight away, so `o` always says what's done.
 function Proof({ o, onSaved }) {
   const photoInput = useRef(null);
-  const scanInput = useRef(null);
   const [uploading, setUploading] = useState(false);
-  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const photos = o.deliveryPhotos || [];
 
@@ -47,32 +43,10 @@ function Proof({ o, onSaved }) {
     }
   };
 
-  // `read` gives the barcode's text (null when the rider closed the scanner); the API says if it matches.
-  const check = async read => {
-    setScanning(true);
-    setError('');
-    try {
-      const code = await read();
-      if (code == null) return;
-      await api.scanLabel(o._id, code);
-      await onSaved();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setScanning(false);
-    }
-  };
-  const scan = () => (scansInApp ? check(scanInApp) : scanInput.current.click());
-  const scanFromPhoto = e => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (file) check(() => scanPhoto(file));
-  };
-
   return (
     <div className="proof">
       <div className={`proof__step${photos.length ? ' is-done' : ''}`}>
-        <b><span>1</span> Photo of the order at the door</b>
+        <b>Photo of the order at the door</b>
         <div className="proof__photos">
           {photos.map(src => <img key={src} src={src} alt="Delivery photo" />)}
           {photos.length < MAX_PHOTOS && (
@@ -82,19 +56,6 @@ function Proof({ o, onSaved }) {
           )}
         </div>
         <input ref={photoInput} type="file" accept="image/*" capture="environment" hidden onChange={addPhoto} />
-      </div>
-      <div className={`proof__step${o.barcodeChecked ? ' is-done' : ''}`}>
-        <b><span>2</span> Scan the barcode on the bag’s label</b>
-        {o.barcodeChecked ? (
-          <p className="proof__ok"><Check size={18} /> Label matches {o.orderNo}</p>
-        ) : scansInApp || scansFromPhoto ? (
-          <button type="button" className="btn btn--ghost btn--block" disabled={scanning} onClick={scan}>
-            {scanning ? <Spinner /> : <><Barcode size={20} /> Scan barcode</>}
-          </button>
-        ) : (
-          <p className="muted small">Scanning needs the BiteVo Rider Android app.</p>
-        )}
-        <input ref={scanInput} type="file" accept="image/*" capture="environment" hidden onChange={scanFromPhoto} />
       </div>
       {error && <p className="banner banner--warn"><Alert size={18} /> {error}</p>}
     </div>
@@ -217,7 +178,7 @@ export default function OrderPage() {
 
   const cash = o.cashToCollect;
   const photoDone = o.deliveryPhotos?.length > 0;
-  const proofDone = photoDone && o.barcodeChecked;
+  const proofDone = photoDone;
   const legLabel = beforePickup && o.mine && me ? 'to the kitchen' : 'to the customer';
 
   return (
@@ -339,7 +300,7 @@ export default function OrderPage() {
             </label>
           ) : <p className="muted">Paid online. Don’t take any money.</p>}
           <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy || !proofDone || (cash > 0 && !cashOk)} onClick={deliver}>
-            {busy ? <Spinner /> : proofDone ? 'Confirm delivery' : !photoDone ? 'Take a photo first' : 'Scan the barcode first'}
+            {busy ? <Spinner /> : proofDone ? 'Confirm delivery' : 'Take a photo first'}
           </button>
           <button type="button" className="btn btn--ghost btn--block" onClick={() => setConfirm(null)}>Not yet</button>
         </Sheet>
