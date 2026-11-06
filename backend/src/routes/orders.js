@@ -33,10 +33,10 @@ function riderOrder(o, agent) {
     mine,
     items: (o.items || []).map(it => ({ name: it.name, qty: it.qty })),
     itemCount: (o.items || []).reduce((s, it) => s + (it.qty || 1), 0),
-    // The bill only when the rider collects it: paid online or from the wallet, they never see an amount.
-    total: cashToCollect(o) > 0 ? o.total : null,
-    paymentMethod: o.paymentMethod,
-    walletUsed: o.walletUsed || 0,
+    // Riders see only what they collect: an amount on cash orders, "Paid online" otherwise. Nothing about the
+    // customer's wallet (a bill paid from it, or partly, looks like any other paid or cash order).
+    total: cashToCollect(o) > 0 ? cashToCollect(o) : null,
+    paymentMethod: cashToCollect(o) > 0 ? 'Cash on delivery' : 'Paid online',
     cashToCollect: cashToCollect(o),
     customerName: mine ? o.customerName : firstName(o.customerName),
     customerPhone: mine ? o.customerPhone : null,

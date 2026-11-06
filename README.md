@@ -64,7 +64,8 @@ and vehicle; set the ID check to Verified).
 - **Order screen:** road route and time to the next stop (kitchen, then customer), the route driven so far, the
   customer's name, address, landmark and note, call and **Navigate** buttons (opens Google Maps), the items, and
   what to collect: "Collect ₹518 · cash or UPI" on pay-on-delivery orders. Orders paid online or from the wallet
-  show no amount at all ("Paid online · nothing to collect"), and the API doesn't send their total to the rider.
+  show no amount at all ("Paid online · nothing to collect"). Riders never see anything about the customer's
+  wallet: the API sends only "Cash on delivery" with the amount to collect, or "Paid online".
 - **Picked up** (when the kitchen is preparing it) → **Delivered**. Delivering needs **proof at the door**, always:
   1. one or more **camera photos** of the handover (up to 4; taken with the camera, never from the gallery),
   2. the **barcode on the order's label** scanned (the kitchen prints it from the admin panel; it's the order
