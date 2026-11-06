@@ -178,6 +178,12 @@ p.center { text-align: center; }
 }
 .pin span { transform: rotate(45deg); display: grid; place-items: center; color: var(--white); font-size: 14px; }
 .pin--kitchen { background: var(--ink); }
+.pin-kitchen { position: relative; width: 36px; height: 44px; }
+.pin-tag {
+  position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); white-space: nowrap;
+  padding: 2px 7px; border-radius: 6px; background: var(--ink); color: var(--white); font-size: 11px; font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25); pointer-events: none;
+}
 .pin--drop { background: var(--red); }
 .pin--drop-dim { background: #A08F8F; width: 30px; height: 30px; margin: 7px 0 0 3px; }
 .me { position: relative; width: 56px; height: 56px; }

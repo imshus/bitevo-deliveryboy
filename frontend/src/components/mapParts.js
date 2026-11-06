@@ -13,7 +13,11 @@ const HOME_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" st
 // A drop-shaped pin, 36 × 44 px, its tip at (18, 42).
 export const PIN = { width: 36, height: 44, x: 18, y: 42 };
 export const pinHtml = (kind, inner) => `<div class="pin pin--${kind}"><span>${inner}</span></div>`;
-export const kitchenPin = () => pinHtml('kitchen', STORE_SVG);
+const escape = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+// The kitchen (the store riders pick up from): a dark pin with the store icon and its name above it, so it never
+// reads as one of the customers' red pins.
+export const kitchenPin = (name = 'Kitchen') =>
+  `<div class="pin-kitchen"><div class="pin-tag">${escape(name)}</div>${pinHtml('kitchen', STORE_SVG)}</div>`;
 export const stopPin = s => pinHtml(s.active ? 'drop' : 'drop-dim', s.number ? `<b>${s.number}</b>` : HOME_SVG);
 
 // The rider: a blue dot with a cone for the heading, 56 × 56 px, centred.

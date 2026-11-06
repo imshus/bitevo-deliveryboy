@@ -122,7 +122,7 @@ export default function GoogleMap({ apiKey, onFail, me, kitchen, stops = [], rou
   useEffect(() => {
     if (!ready) return;
     place('kitchen', hasPoint(kitchen),
-      () => new g.current.HtmlMarker({ position: pos(kitchen), html: kitchenPin(), size: PIN, z: 200, title: kitchen.name || 'Kitchen' }),
+      () => new g.current.HtmlMarker({ position: pos(kitchen), html: kitchenPin(kitchen.name || 'Kitchen'), size: PIN, z: 200, title: kitchen.name || 'Kitchen' }),
       m => m.moveTo(pos(kitchen)));
   }, [ready, kitchen?.lat, kitchen?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
