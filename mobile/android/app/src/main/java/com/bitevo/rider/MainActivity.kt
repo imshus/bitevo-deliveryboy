@@ -28,6 +28,7 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
@@ -235,6 +236,10 @@ class MainActivity : Activity() {
             }
         }
         web.webViewClient = object : WebViewClient() {
+            // Live builds: the app's own screens from the APK, the API from the server (BundledApp).
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                if (origin(request.url.toString()) == appOrigin) BundledApp.answer(assets, request) else null
+
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 if (origin(request.url.toString()) == appOrigin) return false
                 openOutside(request.url)
