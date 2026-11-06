@@ -4,13 +4,19 @@
 // points at a time when the network was down). The latest one is kept on the agent (`location`), and
 // while an order is out for delivery also on the order (`riderLocation`) and in `riderTrack`, so the
 // route driven can be drawn later. `odometer` adds up today's distance.
+//
+// Going online needs no position: the app puts the rider online first and then shares the position as soon as
+// the phone finds it. A phone whose GPS can't (indoors, Wi-Fi positioning off) can ask POST /locate where it is
+// from the Wi-Fi networks around it, and sends that position like any other.
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { store } from '../db/index.js';
 import { config } from '../config.js';
-import { conflict, forbidden, nowIso, MIN } from '../lib/http.js';
+import { badRequest, conflict, forbidden, notFound, nowIso, MIN } from '../lib/http.js';
 import { LIVE_STATUSES, distanceKm, dayKey, serialize } from '../lib/rules.js';
 import { canTakeOrders, publicAgent, syncAgentStatus } from '../lib/agents.js';
 import { riderStats } from '../lib/stats.js';
+import { cleanNetworks, locateByWifi } from '../lib/geolocate.js';
 
 export const router = Router();
 
@@ -108,6 +114,23 @@ router.post('/location', async (req, res) => {
 
   if (result.status === 'offline') throw conflict('You’re offline, so your location isn’t being shared. Go online to start again.', { status: 'offline' });
   res.json({ ok: true, status: result.status });
+});
+
+// Google bills each lookup; the app asks at most once a minute, and only when the networks around it change.
+const locateLimiter = rateLimit({
+  windowMs: 60 * MIN, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false,
+  keyGenerator: req => String(req.agent._id),
+  message: { error: 'Too many Wi-Fi location lookups. The app keeps waiting for the GPS.' },
+});
+
+// { wifi: [{ mac, signal }] } → { position: { lat, lng, accuracy, at } }: where the phone is, from the Wi-Fi
+// networks it can see. Not saved here: the app sends it with POST /location.
+router.post('/locate', locateLimiter, async (req, res) => {
+  const networks = cleanNetworks(req.body?.wifi);
+  if (networks.length < 2) throw badRequest('Not enough Wi-Fi networks nearby to find your location.');
+  const position = await locateByWifi(networks);
+  if (!position) throw notFound('Couldn’t find your location from the Wi-Fi networks nearby.');
+  res.json({ position });
 });
 
 router.get('/today', async (req, res) => {

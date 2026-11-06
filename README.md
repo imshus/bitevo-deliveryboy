@@ -54,8 +54,9 @@ and vehicle; set the ID check to Verified).
 - **Sign in** with the mobile number the panel has for them and a 6-digit code (WhatsApp/SMS through MiniMoth,
   like the website). Numbers that aren't an agent get no code. Suspended agents can't sign in, and suspending one
   in the panel signs them out everywhere. Sign-ins show on the panel's Login status page.
-- **Go online / offline.** Online needs a verified ID check and the phone's location. Offline isn't possible while
-  carrying an order.
+- **Go online / offline.** Online needs a verified ID check and location access; the rider goes online straight
+  away and the position follows as soon as the phone finds it (indoors, the Android app asks the API from the Wi-Fi
+  networks around it). Offline isn't possible while carrying an order.
 - **Live map** of the rider, the kitchen, their drop points (numbered) and orders on offer nearby.
 - **Orders:** the ones the kitchen assigned to them (a chime and vibration when one arrives), and, when the admin
   panel allows self-assign, any new order they can **accept** themselves (up to `MAX_ACTIVE_ORDERS` at a
@@ -63,7 +64,8 @@ and vehicle; set the ID check to Verified).
 - **Order screen:** road route and time to the next stop (kitchen, then customer), the route driven so far, the
   customer's name, address, landmark and note, call and **Navigate** buttons (opens Google Maps), the items, and
   what to collect: "Collect ₹518 · cash or UPI" on pay-on-delivery orders. Orders paid online or from the wallet
-  show no amount at all ("Paid online · nothing to collect"), and the API doesn't send their total to the rider.
+  show no amount at all ("Paid online · nothing to collect"). Riders never see anything about the customer's
+  wallet: the API sends only "Cash on delivery" with the amount to collect, or "Paid online".
 - **Picked up** (when the kitchen is preparing it) → **Delivered**. Delivering needs **proof at the door**, always:
   1. one or more **camera photos** of the handover (up to 4; taken with the camera, never from the gallery),
   2. the **barcode on the order's label** scanned (the kitchen prints it from the admin panel; it's the order
@@ -120,6 +122,7 @@ order from the panel; the app picks up those changes within 10 seconds.
 | `SUPPORT_PHONE` | none | Profile → Call BiteVo support |
 | `SELF_ASSIGN` | `true` | Self-assign until the admin panel's switch (Live map → Waiting for a rider) is first used; the switch wins after that |
 | `GOOGLE_MAPS_KEY`, `GOOGLE_MAPS_BROWSER_KEY` | none | Google Maps for the app's map (else OpenStreetMap) |
+| `GOOGLE_GEOLOCATION_KEY` | `GOOGLE_MAPS_KEY` | Google's Geolocation API (enable it on the key; billed per lookup): finds Android riders indoors from Wi-Fi when their GPS can't (`POST /api/rider/locate`) |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_DELIVERY_BUCKET` | none, none, `bitevo-delivery-photos` | Where delivery photos go (the admin panel's Supabase project). Empty = `backend/data/photos` |
 | `MAX_ACTIVE_ORDERS` | `2` | Orders a rider can carry at once |
 | `OFFLINE_AFTER_MINS` | `20` | Silence before an idle rider is set offline |
@@ -151,7 +154,9 @@ The certificate is self-signed, so the phone warns once; continue to the site. T
 
 `mobile/` builds `BiteVoRider.apk` (`npm run build:android` in `mobile/`): the rider app in a WebView, plus a
 foreground location service that keeps sharing the rider's position while the screen is off. Build it with the
-address riders open (`-AppUrl https://…`); without one it opens the dev server as the Android emulator sees it.
+API's address (`-AppUrl https://driverapi.bitevo.in`): live builds carry the app's screens inside the APK and
+send only `/api/…` to the server, so the server needn't host the web app for them. Without `-AppUrl` it opens
+the dev server as the Android emulator sees it.
 Inside the app, `frontend/src/lib/tracker.js` leaves the GPS and the sending to the app (`window.BiteVoRider`), and
 Profile and the location line word their tips for the app. See `mobile/README.md` for permissions and testing.
 

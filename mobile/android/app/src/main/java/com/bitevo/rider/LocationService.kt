@@ -1,6 +1,9 @@
 // The foreground service that shares the rider's live location while they're online, also with the screen
 // off or another app open. Android shows its "Sharing live location" notification while it runs.
 //  - follows the GPS (and the network position when the GPS has had nothing for a while);
+//  - when neither has found the phone for WIFI_AFTER_MS (indoors, with the phone's Wi-Fi positioning off), sends
+//    the Wi-Fi networks it can see to /api/rider/locate, which asks Google where that is. At most once every
+//    WIFI_EVERY_MS, and only when the networks around it have changed (Google bills each lookup);
 //  - queues a point whenever the rider has moved SEND_EVERY_M, and every SEND_EVERY_MS while standing still,
 //    and posts them to /api/rider/location with the rider's session cookie from the WebView. Same rules as
 //    the web app's tracker (frontend/src/lib/tracker.js), which leaves the sending to this service in the app;
@@ -22,6 +25,7 @@ import android.content.pm.ServiceInfo
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -48,6 +52,12 @@ class LocationService : Service(), LocationListener {
         private const val NETWORK_EVERY_MS = 10_000L
         private const val GPS_QUIET_MS = 30_000L // network positions are used only after this long without a GPS fix
         private const val FRESH_MS = 2 * 60_000L // a position found before going online is sent if it's this recent
+        private const val WIFI_AFTER_MS = 15_000L // no GPS or network position for this long: ask the API, from Wi-Fi
+        private const val WIFI_EVERY_MS = 60_000L // at most one Wi-Fi lookup this often
+        private const val WIFI_RETRY_MS = 10_000L // after a Wi-Fi scan that found too little (it may still be running)
+        private const val WIFI_SCAN_FRESH_MS = 2 * 60_000L // scan results older than this are ignored
+        private const val WIFI_NETWORKS = 15
+        private const val STILL_LOOKING_MS = 60_000L // no position at all for this long: tell the rider what helps
         private const val WAKE_MS = 10 * 60_000L // renewed on every tick, so it lapses by itself if the service hangs
         private const val SHARING_ID = 1
         private const val STOPPED_ID = 2
@@ -84,6 +94,16 @@ class LocationService : Service(), LocationListener {
     private var sending = false
     private var lastTryAt = 0L
     private var notificationText: String? = null
+    private var startedAt = 0L // elapsedRealtime
+    private var lastFixAt: Long? = null // the last GPS or network position taken (elapsedRealtime)
+    private var locationOff = false
+
+    // Wi-Fi lookups through the API
+    private var wifiLocating = false
+    private var wifiNotSetUp = false // the API has no Geolocation key
+    private var lastWifiTryAt: Long? = null
+    private var wifiRetried = false
+    private var askedPlace: Set<String> = emptySet() // the strongest networks at the last lookup
 
     private fun elapsed() = SystemClock.elapsedRealtime()
 
@@ -112,6 +132,7 @@ class LocationService : Service(), LocationListener {
     private fun begin() {
         Tracker.running = true
         Tracker.position = Tracker.position?.takeIf { System.currentTimeMillis() - it.at < FRESH_MS }
+        startedAt = elapsed()
         wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BiteVoRider:location")
             .apply { setReferenceCounted(false) }
@@ -145,6 +166,8 @@ class LocationService : Service(), LocationListener {
             val p = Tracker.position
             if (p != null && (lastQueued == null || elapsed() - lastQueuedAt >= SEND_EVERY_MS)) enqueue(p)
             flush()
+            locateByWifi()
+            refreshProblem()
             handler.postDelayed(this, TICK_MS)
         }
     }
@@ -155,11 +178,13 @@ class LocationService : Service(), LocationListener {
         else if (lastGpsAt?.let { now - it < GPS_QUIET_MS } == true) return // the GPS is doing better
         val p = location.toPoint()
         Tracker.position = p
+        lastFixAt = now
         val last = lastQueued
         if (last == null || distanceM(last, p) >= SEND_EVERY_M || now - lastQueuedAt >= SEND_EVERY_MS) {
             enqueue(p)
             flush()
         }
+        refreshProblem()
         Tracker.changed()
     }
 
@@ -171,11 +196,91 @@ class LocationService : Service(), LocationListener {
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
 
     private fun checkLocationOn() {
-        val on = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .any { runCatching { locations.isProviderEnabled(it) }.getOrDefault(false) }
-        Tracker.gpsProblem = if (on) null else getString(R.string.sharing_location_off)
+        locationOff = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .none { enabled(it) }
+        refreshProblem()
         updateNotification()
         Tracker.changed()
+    }
+
+    private fun enabled(provider: String) = runCatching { locations.isProviderEnabled(provider) }.getOrDefault(false)
+
+    // For the line under the switch and the notification: Location is off, or no position for a while (and
+    // what would help: with the network provider off, the phone has no Wi-Fi positioning of its own).
+    private fun refreshProblem() {
+        val problem = when {
+            locationOff -> getString(R.string.sharing_location_off)
+            Tracker.position == null && elapsed() - (lastFixAt ?: startedAt) >= STILL_LOOKING_MS ->
+                getString(if (enabled(LocationManager.NETWORK_PROVIDER)) R.string.still_looking else R.string.still_looking_gps_only)
+            else -> null
+        }
+        if (problem == Tracker.gpsProblem) return
+        Tracker.gpsProblem = problem
+        updateNotification()
+        Tracker.changed()
+    }
+
+    // No GPS or network position for WIFI_AFTER_MS: where is the phone, from the Wi-Fi networks around it?
+    private fun locateByWifi() {
+        if (wifiLocating || wifiNotSetUp || locationOff) return
+        val now = elapsed()
+        if (now - (lastFixAt ?: startedAt) < WIFI_AFTER_MS) return
+        if (lastWifiTryAt?.let { now - it < WIFI_EVERY_MS } == true) return
+        lastWifiTryAt = now
+        val networks = wifiNearby()
+        if (networks.size < 2) {
+            // The scan just asked for may still be running: look again soon, once.
+            if (!wifiRetried) lastWifiTryAt = now - WIFI_EVERY_MS + WIFI_RETRY_MS
+            wifiRetried = true
+            return
+        }
+        wifiRetried = false
+        // Mostly the same networks as at the last lookup: still in the same place, nothing new to learn.
+        val place = networks.take(6).map { it.mac }.toSet()
+        if ((place intersect askedPlace).size * 2 >= place.size) return
+        wifiLocating = true
+        val cookie = runCatching { CookieManager.getInstance().getCookie(apiUrl) }.getOrNull()
+        network.execute {
+            val result = sender.locate(networks, cookie)
+            handler.post { wifiLocated(result, place) }
+        }
+    }
+
+    private fun wifiLocated(result: LocationSender.Located, place: Set<String>) {
+        wifiLocating = false
+        if (!alive) return
+        when (result) {
+            is LocationSender.Located.Found -> {
+                askedPlace = place
+                // A GPS or network position that came in meanwhile is better.
+                if (lastFixAt?.let { elapsed() - it < WIFI_AFTER_MS } == true) return
+                Tracker.position = result.point
+                enqueue(result.point)
+                flush()
+                refreshProblem()
+                Tracker.changed()
+            }
+            LocationSender.Located.NotFound -> askedPlace = place
+            LocationSender.Located.NotSetUp -> wifiNotSetUp = true
+            is LocationSender.Located.Failed -> Log.i(TAG, "No Wi-Fi position: ${result.reason}")
+        }
+    }
+
+    // The strongest Wi-Fi networks the phone has seen in the last couple of minutes (BSSID and signal).
+    @SuppressLint("MissingPermission") // precise location, checked in onStartCommand
+    private fun wifiNearby(): List<LocationSender.Wifi> {
+        val wifi = applicationContext.getSystemService(WifiManager::class.java) ?: return emptyList()
+        // For next time: Android limits how often apps scan, and the results arrive later.
+        @Suppress("DEPRECATION")
+        runCatching { wifi.startScan() }
+        val nowUs = elapsed() * 1000
+        @Suppress("DEPRECATION")
+        return runCatching { wifi.scanResults }.getOrNull().orEmpty()
+            .filter { nowUs - it.timestamp < WIFI_SCAN_FRESH_MS * 1000 && !it.BSSID.isNullOrBlank() }
+            .filter { !(it.SSID ?: "").endsWith("_nomap") } // their owners opted out of location services
+            .sortedByDescending { it.level }
+            .take(WIFI_NETWORKS)
+            .map { LocationSender.Wifi(it.BSSID.lowercase(), it.level) }
     }
 
     private fun distanceM(a: Point, b: Point): Float {

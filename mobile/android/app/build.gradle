@@ -10,6 +10,25 @@ def trimmed = { String url -> url.trim().replaceAll('/+$', '') }
 def appUrl = trimmed((findProperty('appUrl') ?: 'http://10.0.2.2:2003').toString())
 def apiUrl = trimmed((findProperty('apiUrl') ?: appUrl).toString())
 
+// Builds for an https address (the live app) carry the rider web app's screens inside the APK (assets/web):
+// the app serves them itself for appUrl and sends only /api/… to the server (BundledApp.kt), so the server
+// only has to run the API. Dev builds (http) load the dev server instead. -PbundleWeb=false/true overrides.
+// The screens come from frontend/dist-android: scripts/build-android.ps1 builds them first
+// (npm run build:android --prefix frontend).
+def bundleWeb = (findProperty('bundleWeb') ?: appUrl.startsWith('https:')).toString().toBoolean()
+def webDist = file('../../../frontend/dist-android')
+def webAssets = file("${layout.buildDirectory.get().asFile}/generated/webapp")
+def copyWebApp = tasks.register('copyWebApp', Sync) {
+    from webDist
+    into new File(webAssets, 'web')
+    doFirst {
+        if (!new File(webDist, 'index.html').exists()) {
+            throw new GradleException("The rider web app isn't built: run `npm run build:android --prefix frontend` (or scripts/build-android.ps1).")
+        }
+    }
+}
+if (bundleWeb) tasks.named('preBuild') { dependsOn copyWebApp }
+
 android {
     namespace = 'com.bitevo.rider' // the code's package ("in" is a reserved word in Kotlin); the app ID stays in.bitevo.rider
     compileSdk = 37
@@ -23,8 +42,14 @@ android {
         versionName = '1.0'
         buildConfigField 'String', 'APP_URL', "\"${appUrl}\""
         buildConfigField 'String', 'API_URL', "\"${apiUrl}\""
+        buildConfigField 'boolean', 'BUNDLED_WEB', String.valueOf(bundleWeb)
         // Plain http is allowed only when the app was built for an http address (the dev server).
         manifestPlaceholders = [usesCleartextTraffic: String.valueOf(appUrl.startsWith('http:') || apiUrl.startsWith('http:'))]
+    }
+    sourceSets {
+        main {
+            if (bundleWeb) assets.srcDir(webAssets)
+        }
     }
     buildFeatures {
         buildConfig = true

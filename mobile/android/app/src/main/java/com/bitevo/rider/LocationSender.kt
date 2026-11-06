@@ -53,15 +53,70 @@ class LocationSender(private val apiUrl: String, private val userAgent: String) 
         data class Failed(val reason: String) : Result
     }
 
+    // A Wi-Fi network the phone can see: its BSSID and signal strength (dBm).
+    data class Wifi(val mac: String, val signal: Int)
+
+    sealed interface Located {
+        // Where the phone is, approximately (accuracy in metres).
+        data class Found(val point: Point) : Located
+        // Google doesn't know these networks.
+        data object NotFound : Located
+        // The API has no Geolocation key: stop asking.
+        data object NotSetUp : Located
+        // No network, the server had a problem, or too many lookups: maybe later.
+        data class Failed(val reason: String) : Located
+    }
+
+    private class Answer(val code: Int, val json: JSONObject?) {
+        fun error() = "HTTP $code ${json?.optString("error").orEmpty()}".trim()
+    }
+
     // `cookie` is the Cookie header for the API's address (from the WebView's CookieManager on the phone).
     fun send(points: List<Point>, cookie: String?): Result {
-        val body = JSONObject().put("points", JSONArray(points.map { it.toJson() })).toString().toByteArray()
-        val conn = try {
-            URL("$apiUrl/api/rider/location").openConnection() as HttpURLConnection
+        val answer = try {
+            post("/api/rider/location", JSONObject().put("points", JSONArray(points.map { it.toJson() })), cookie)
         } catch (e: IOException) {
             return Result.Failed(e.toString())
         }
-        return try {
+        val json = answer.json
+        return when {
+            answer.code in 200..299 -> Result.Sent(json?.optString("status").orEmpty())
+            answer.code == 409 && json?.optString("status") == "offline" ->
+                Result.Offline(json.optString("error").ifBlank { "You’re offline, so your location isn’t being shared." })
+            answer.code == 401 -> Result.SignedOut
+            else -> Result.Failed(answer.error())
+        }
+    }
+
+    // Where the phone is from the Wi-Fi networks it can see (POST /api/rider/locate, Google's Geolocation API).
+    fun locate(networks: List<Wifi>, cookie: String?): Located {
+        val wifi = JSONArray(networks.map { JSONObject().put("mac", it.mac).put("signal", it.signal) })
+        val answer = try {
+            post("/api/rider/locate", JSONObject().put("wifi", wifi), cookie)
+        } catch (e: IOException) {
+            return Located.Failed(e.toString())
+        }
+        val p = answer.json?.optJSONObject("position")
+        return when {
+            answer.code in 200..299 && p != null && p.has("lat") && p.has("lng") -> Located.Found(
+                Point(
+                    lat = p.getDouble("lat"),
+                    lng = p.getDouble("lng"),
+                    accuracy = p.optDouble("accuracy").takeIf { it.isFinite() },
+                    heading = null,
+                    speed = null,
+                    at = System.currentTimeMillis(),
+                ),
+            )
+            answer.code == 404 -> Located.NotFound
+            answer.code == 503 && answer.json?.optString("code") == "NOT_SET_UP" -> Located.NotSetUp
+            else -> Located.Failed(answer.error())
+        }
+    }
+
+    private fun post(path: String, body: JSONObject, cookie: String?): Answer {
+        val conn = URL("$apiUrl$path").openConnection() as HttpURLConnection
+        try {
             conn.requestMethod = "POST"
             conn.connectTimeout = 15000
             conn.readTimeout = 20000
@@ -70,19 +125,11 @@ class LocationSender(private val apiUrl: String, private val userAgent: String) 
             conn.setRequestProperty("Accept", "application/json")
             conn.setRequestProperty("User-Agent", userAgent)
             if (!cookie.isNullOrBlank()) conn.setRequestProperty("Cookie", cookie)
-            conn.outputStream.use { it.write(body) }
+            conn.outputStream.use { it.write(body.toString().toByteArray()) }
             val code = conn.responseCode
             val stream = if (code < 400) conn.inputStream else conn.errorStream
             val json = runCatching { JSONObject(stream.bufferedReader().use { it.readText() }) }.getOrNull()
-            when {
-                code in 200..299 -> Result.Sent(json?.optString("status").orEmpty())
-                code == 409 && json?.optString("status") == "offline" ->
-                    Result.Offline(json.optString("error").ifBlank { "You’re offline, so your location isn’t being shared." })
-                code == 401 -> Result.SignedOut
-                else -> Result.Failed("HTTP $code ${json?.optString("error").orEmpty()}".trim())
-            }
-        } catch (e: IOException) {
-            Result.Failed(e.toString())
+            return Answer(code, json)
         } finally {
             conn.disconnect()
         }

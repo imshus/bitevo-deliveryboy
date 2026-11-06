@@ -15,6 +15,7 @@ import { imageKind, saveDeliveryPhoto } from '../lib/photos.js';
 export const router = Router();
 
 const AVAILABLE_FOR_MS = 12 * 60 * MIN; // older unassigned orders aren't offered to riders
+const MAX_OFFERED = 30; // the newest waiting orders a rider is offered at once
 const round = (n, d = 1) => Math.round(n * 10 ** d) / 10 ** d;
 const firstName = name => String(name || '').trim().split(/\s+/)[0] || 'Customer';
 
@@ -32,10 +33,10 @@ function riderOrder(o, agent) {
     mine,
     items: (o.items || []).map(it => ({ name: it.name, qty: it.qty })),
     itemCount: (o.items || []).reduce((s, it) => s + (it.qty || 1), 0),
-    // The bill only when the rider collects it: paid online or from the wallet, they never see an amount.
-    total: cashToCollect(o) > 0 ? o.total : null,
-    paymentMethod: o.paymentMethod,
-    walletUsed: o.walletUsed || 0,
+    // Riders see only what they collect: an amount on cash orders, "Paid online" otherwise. Nothing about the
+    // customer's wallet (a bill paid from it, or partly, looks like any other paid or cash order).
+    total: cashToCollect(o) > 0 ? cashToCollect(o) : null,
+    paymentMethod: cashToCollect(o) > 0 ? 'Cash on delivery' : 'Paid online',
     cashToCollect: cashToCollect(o),
     customerName: mine ? o.customerName : firstName(o.customerName),
     customerPhone: mine ? o.customerPhone : null,
@@ -89,7 +90,9 @@ router.get('/', async (req, res) => {
   const mine = await store.find('orders', { agentId: agent._id, status: { $in: LIVE_STATUSES } }, { sort: { placedAt: 1 } });
   const self = await selfAssign();
   const offer = self && canTakeOrders(agent);
-  const available = offer ? await store.find('orders', availableFilter(agent), { sort: { placedAt: 1 }, limit: 30 }) : [];
+  // Newest first: with many older orders still waiting (never accepted by the kitchen), a new one must still be in
+  // the list. Oldest first with the limit, riders saw only those old ones.
+  const available = offer ? await store.find('orders', availableFilter(agent), { sort: { placedAt: -1 }, limit: MAX_OFFERED }) : [];
   // Out for delivery first, then the oldest.
   const rank = o => (o.status === 'out_for_delivery' ? 0 : 1);
   mine.sort((a, b) => rank(a) - rank(b) || a.placedAt.localeCompare(b.placedAt));

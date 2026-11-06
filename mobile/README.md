@@ -15,7 +15,9 @@ while the background service has to be native code either way.
 ## Build the APK
 
 Needs Java 17 and the Android SDK in `D:\Android` (`jdk\`, `Sdk\`, Gradle's cache in `gradle-home\`), the same
-setup as the customer app. Set `BITEVO_ANDROID_TOOLS` for another folder. There's nothing to `npm install`.
+setup as the customer app. Set `BITEVO_ANDROID_TOOLS` for another folder; without either, the script uses Android
+Studio's own Java and SDK (`Program Files\Android\Android Studio\jbr`, `%LOCALAPPDATA%\Android\Sdk`). There's
+nothing to `npm install` here; live builds install `frontend/`'s packages if they're missing.
 
 ```bash
 npm run build:android
@@ -27,14 +29,21 @@ The APK is written to `mobile\BiteVoRider.apk`. The app opens one address, set w
 |---|---|
 | `npm run build:android` | `http://10.0.2.2:2003`: the dev server, as the **Android emulator** sees this PC |
 | `npm run build:android -- -AppUrl http://192.168.1.20:2003` | the dev server from a **phone on the same Wi-Fi** (use this PC's address) |
-| `npm run build:android -- -AppUrl https://rider.bitevo.in` | the **live** app |
+| `npm run build:android -- -AppUrl https://driverapi.bitevo.in` | the **live** app: its screens built into the APK, only the API on that server |
 | `... -ApiUrl https://api.example.in` | only if the API is on another domain than the app |
 
 (`BITEVO_RIDER_URL` / `BITEVO_RIDER_API_URL` do the same as `-AppUrl` / `-ApiUrl`.)
 
-Builds for an `http://` address are test builds: when the address can't be reached, the "Can't reach BiteVo"
-screen lets you type another one (kept on the phone), and the page can be inspected from the PC's Chrome at
-`chrome://inspect`. Builds for an `https://` address always use that address and allow no plain http.
+Builds for an `http://` address are test builds: they load the screens from that address (the dev server), when
+it can't be reached the "Can't reach BiteVo" screen lets you type another one (kept on the phone), and the page can
+be inspected from the PC's Chrome at `chrome://inspect`.
+
+Builds for an `https://` address are **live builds**. The script first builds the rider web app
+(`npm run build:android --prefix ../frontend`, into `frontend/dist-android`, with the API at the page's own address)
+and Gradle puts it inside the APK (`assets/web`, about 1 MB). The app opens the address as usual, but serves every
+page and file of the app itself (`BundledApp.kt`); only `/api/…` and `/photos/…` go to the server. So the server
+only has to run the API, the page and the API share one address (the sign-in cookie is the app's own, no CORS),
+and the screens always match the app. New screens mean a new APK. Live builds allow no plain http.
 
 The APK is signed with React Native's public debug key, like the customer app: fine for installing directly.
 For the Play Store, create your own upload key (keep it and its password safe, never commit it) and use it for
@@ -64,8 +73,9 @@ API, which loses sign-in codes it has just sent.) Vite prints the address (e.g. 
 "Can't reach BiteVo" screen. Windows may ask once whether Node.js may accept connections on private networks:
 allow it. The API itself stays on `127.0.0.1`; Vite forwards `/api` to it.
 
-**Going live** works like the web app's "Going live" section in the main README: the API serves the built web app
-on one https address, with `COOKIE_SECURE=true`. Build the APK with `-AppUrl` set to that address.
+**Going live**: the API on one https address with `COOKIE_SECURE=true` (the main README's "Going live"); it doesn't
+have to serve the web app for the Android app, which carries its own screens. Build the APK with `-AppUrl` set to
+the API's address (`https://driverapi.bitevo.in`).
 
 ## Permissions
 
@@ -77,6 +87,9 @@ Asked when the rider first goes online, one at a time, each after a short explan
 | Location **"Allow all the time"** (Android 10+) | keeps sharing if Android restarts the app in the background | No, asked once. Sharing with the screen off works without it, because it runs as a foreground service started from the screen |
 | Notifications (Android 13+) | the "Sharing live location" notification, and "Location sharing stopped" | No, asked once. Without it the service still runs, but the notification is hidden |
 | No battery restrictions | stops battery saving from cutting location off | No, asked once |
+
+Reading the Wi-Fi networks around the phone (for finding it indoors, below) needs no prompt: precise location
+covers it, plus `ACCESS_WIFI_STATE` / `CHANGE_WIFI_STATE`, which Android grants on install.
 
 Proof of delivery needs no extra permission: **photos** are taken with the phone's own camera app (never picked from
 the gallery) and saved in the app's cache for a day; the **order label's barcode** is read by Google's code scanner
@@ -92,7 +105,8 @@ turn on **Autostart** where there is one, and on Samsung don't put the app in "S
 
 - **The page and the app.** The app gives the web page `window.BiteVoRider`. The web tracker
   (`frontend/src/lib/tracker.js`) sees it and, instead of following the GPS itself, asks the app to:
-  `askForLocation()` (permissions, then one position, when going online), `startTracking()` while the rider is
+  `askForLocation()` (permissions when going online; the rider goes online straight after, without waiting for a
+  position), `startTracking()` while the rider is
   online (also right after the app opens if they still are), `stopTracking()` when they go offline or sign out,
   and `permission()`. The app answers with `bitevo-rider` events that carry the tracker's own fields (position,
   last sent, positions waiting, network or GPS problem), so the page shows the same "Live location shared · ±8 m ·
@@ -101,6 +115,13 @@ turn on **Autostart** where there is one, and on Samsung don't put the app in "S
   follows the GPS (the network position when the GPS has had nothing for 30 s), queues a point every 20 m and every
   12 s, posts up to 60 at a time, keeps up to 300 while the network is down, and holds a partial wake lock so
   sending goes on while the phone sleeps. Points are stamped when queued, like the web tracker does.
+- **Indoors.** When neither the GPS nor the network has found the phone for 15 s (typically indoors with the
+  phone's Wi-Fi positioning, Google Location Accuracy, off), the service sends the Wi-Fi networks it can see to
+  `POST /api/rider/locate`, which asks Google's Geolocation API where they are (`GOOGLE_GEOLOCATION_KEY`, else
+  `GOOGLE_MAPS_KEY`, on the API). The answer (tens of metres) is sent like any other position. At most once a
+  minute, and only when the networks around it have changed, since Google bills each lookup. After a minute
+  with no position at all, the line under the switch and the notification say what helps, with a **Settings**
+  link (Google Location Accuracy, or Location when it's off).
 - **Signed in as the rider.** The session cookie `bitevo_rider_session` is httpOnly, so the page can't read it,
   but the app can: the service reads it from the WebView's cookie store (`CookieManager`) and sends it as the
   `Cookie` header. Signing out or in again in the web app changes what the service sends.
@@ -155,15 +176,18 @@ number, so don't run it back to back.
 ## Code
 
 ```
-scripts/build-android.ps1   the build (Java, SDK and Gradle cache from D:\Android), the -AppUrl option
-android/app/build.gradle    app ID in.bitevo.rider, Android 7+, the address baked in (appUrl / apiUrl)
+scripts/build-android.ps1   the build (Java, SDK and Gradle cache from D:\Android or Android Studio), the -AppUrl
+                            option; live builds build the web app's screens first
+android/app/build.gradle    app ID in.bitevo.rider, Android 7+, the address baked in (appUrl / apiUrl), the
+                            screens put in the APK for live builds (copyWebApp → assets/web)
 android/app/src/main/
   AndroidManifest.xml       permissions, the location service
   java/com/bitevo/rider/
     MainActivity.kt         the WebView, window.BiteVoRider, edge-to-edge bars, back button, "Can't reach" screen
-    LocationAccess.kt       asking for permissions, step by step; one position for going online
-    LocationService.kt      the foreground service: GPS, queue, sending, notifications
-    LocationSender.kt       one POST to /api/rider/location and what the answer means (plain Kotlin)
+    BundledApp.kt           live builds: the app's screens from the APK, /api/… from the server
+    LocationAccess.kt       asking for permissions, step by step; a recent position for going online; settings
+    LocationService.kt      the foreground service: GPS, Wi-Fi lookups indoors, queue, sending, notifications
+    LocationSender.kt       POST /api/rider/location and /api/rider/locate, and what the answers mean (plain Kotlin)
     Tracker.kt              the service's state, passed on to the page
     Server.kt               the address: the built one, or the one typed on the phone (test builds)
 android/app/src/test/       LocationSenderTest (npm run test:sender)

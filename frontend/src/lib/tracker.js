@@ -143,7 +143,7 @@ function onNetworkBack() {
 if (app) {
   window.addEventListener('bitevo-rider', e => {
     // (barcode answers are for lib/proof.js)
-    const { offline, signedOut, locationError, barcode, barcodeError, barcodeCancelled, photoError, ...patch } = e.detail || {};
+    const { offline, signedOut, located, locationError, barcode, barcodeError, barcodeCancelled, photoError, ...patch } = e.detail || {};
     set(patch);
     if (offline) {
       stopTracking();
@@ -166,7 +166,9 @@ export async function readPermission() {
   }
 }
 
-// Asks for the location once (the browser shows its permission prompt) and resolves with the position.
+// Going online: asks for location access (the browser shows its permission prompt) and resolves with the
+// position, or with null when the phone hasn't found one yet. Going online doesn't wait for it: the tracker
+// keeps looking and shares the position once there is one. Rejects only when location is blocked or off.
 export function askForLocation() {
   if (app) return askTheApp();
   return new Promise((resolve, reject) => {
@@ -179,29 +181,34 @@ export function askForLocation() {
       resolve(state.position);
     }, e => {
       onGpsError(e);
+      if (e.code === 3) return resolve(null); // allowed, just no fix yet
       reject(new Error(e.code === 1
         ? 'Allow location for this app to go online. The BiteVo team follows your live position while you work.'
-        : e.code === 3
-          ? 'Your phone couldn’t find where you are. Step outside or near a window for a minute, then try again.'
-          : 'Your phone can’t find its location. Turn on Location (GPS) and try again.'));
-    }, { enableHighAccuracy: true, timeout: 45000, maximumAge: 10000 });
+        : 'Your phone can’t find its location. Turn on Location (GPS) and try again.'));
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 });
   });
 }
 
-// The app explains and asks for location access (also "Allow all the time"), then finds one position.
+// The app explains and asks for location access (also "Allow all the time"), then answers { located } with a
+// recent position or null; its location service finds the position after that. (Older versions of the app
+// looked for one first and answered { position } or { locationError }.)
 function askTheApp() {
   return new Promise((resolve, reject) => {
     const answer = e => {
-      const { position, locationError } = e.detail || {};
-      if (!position && !locationError) return;
+      const { located, position, locationError } = e.detail || {};
+      if (!located && !position && !locationError) return;
       window.removeEventListener('bitevo-rider', answer);
       if (locationError) reject(new Error(locationError));
-      else resolve(position);
+      else resolve(position || null);
     };
     window.addEventListener('bitevo-rider', answer);
     app.askForLocation();
   });
 }
+
+// In the Android app: the phone's location settings (Google Location Accuracy, or Location when it's off).
+export const canOpenLocationSettings = typeof app?.openLocationSettings === 'function';
+export const openLocationSettings = () => app?.openLocationSettings();
 
 // `onOffline(message)`: the API says this rider is offline (e.g. set offline after a long silence).
 export function startTracking(opts = {}) {

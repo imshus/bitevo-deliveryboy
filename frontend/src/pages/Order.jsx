@@ -281,9 +281,9 @@ export default function OrderPage() {
         <div className={`paybox ${cash > 0 ? 'paybox--cash' : 'paybox--paid'}`}>
           <Cash size={26} />
           {cash > 0 ? (
-            <div><b>Collect {money(cash)}</b><span>Pay on delivery · cash or UPI{o.walletUsed > 0 ? ` · ${money(o.walletUsed)} already paid from wallet` : ''}</span></div>
+            <div><b>Collect {money(cash)}</b><span>Pay on delivery · cash or UPI</span></div>
           ) : (
-            <div><b>{o.paymentMethod === 'Wallet' ? 'Paid from BiteVo wallet' : 'Paid online'} · nothing to collect</b><span>Don’t take any money for this order</span></div>
+            <div><b>Paid online · nothing to collect</b><span>Don’t take any money for this order</span></div>
           )}
         </div>
 
@@ -337,7 +337,7 @@ export default function OrderPage() {
               <input type="checkbox" checked={cashOk} onChange={e => setCashOk(e.target.checked)} />
               <span>I collected <b>{money(cash)}</b> (cash or UPI) from {o.customerName.split(' ')[0]}</span>
             </label>
-          ) : <p className="muted">Paid {o.paymentMethod === 'Wallet' ? 'from the wallet' : 'online'}. Don’t take any money.</p>}
+          ) : <p className="muted">Paid online. Don’t take any money.</p>}
           <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy || !proofDone || (cash > 0 && !cashOk)} onClick={deliver}>
             {busy ? <Spinner /> : proofDone ? 'Confirm delivery' : !photoDone ? 'Take a photo first' : 'Scan the barcode first'}
           </button>

@@ -16,13 +16,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.location.Location
-import android.location.LocationListener
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 
@@ -36,9 +32,7 @@ class LocationAccess(private val activity: Activity) {
         private const val ASKED_BACKGROUND = "askedBackground"
         private const val ASKED_NOTIFICATIONS = "askedNotifications"
         private const val ASKED_BATTERY = "askedBattery"
-        // A GPS starting cold, or near a window, can take most of a minute for its first position.
-        private const val FIX_WAIT_MS = 45_000L
-        private const val LAST_KNOWN_MS = 5 * 60_000L
+        private const val LAST_KNOWN_MS = 2 * 60_000L // as recent as the location service sends on starting
         private const val GOOGLE_LOCATION_ACCURACY = "com.google.android.gms.location.settings.GOOGLE_LOCATION_ACCURACY"
 
         fun hasLocation(context: Context) = context.checkSelfPermission(ACCESS_FINE_LOCATION) == PERMISSION_GRANTED
@@ -134,64 +128,33 @@ class LocationAccess(private val activity: Activity) {
         }
     }
 
-    // One position for going online: the first from the GPS, the network or (Android 12+) the fused provider
-    // within FIX_WAIT_MS, or else the phone's last known position if it's recent. Null if there's none.
+    // The phone's latest position if it's recent, for going online with; null if there's none. Going online
+    // doesn't wait for one: the location service finds it (GPS, network, or Wi-Fi through the API).
     @SuppressLint("MissingPermission") // called once location is allowed
-    fun firstFix(then: (Location?) -> Unit) {
+    fun lastKnown(): Location? {
         val manager = activity.getSystemService(LocationManager::class.java)
-        val handler = Handler(Looper.getMainLooper())
-        val providers = listOfNotNull(
+        return listOfNotNull(
             LocationManager.GPS_PROVIDER,
             LocationManager.NETWORK_PROVIDER,
             if (Build.VERSION.SDK_INT >= 31) LocationManager.FUSED_PROVIDER else null,
-        ).filter { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
-        var answered = false
-        lateinit var listener: LocationListener
-        fun answer(location: Location?) {
-            if (answered) return
-            answered = true
-            handler.removeCallbacksAndMessages(null)
-            runCatching { manager.removeUpdates(listener) }
-            then(location)
-        }
-        listener = object : LocationListener {
-            override fun onLocationChanged(location: Location) = answer(location)
-            override fun onProviderEnabled(provider: String) {}
-            override fun onProviderDisabled(provider: String) {}
-
-            @Deprecated("Called below Android 10, where it has no default yet")
-            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-        }
-        for (provider in providers) runCatching { manager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper()) }
-        handler.postDelayed({
-            val recent = (providers + LocationManager.PASSIVE_PROVIDER)
-                .mapNotNull { runCatching { manager.getLastKnownLocation(it) }.getOrNull() }
-                .filter { System.currentTimeMillis() - it.time < LAST_KNOWN_MS }
-                .maxByOrNull { it.time }
-            answer(recent)
-        }, FIX_WAIT_MS)
+            LocationManager.PASSIVE_PROVIDER,
+        )
+            .mapNotNull { runCatching { manager.getLastKnownLocation(it) }.getOrNull() }
+            .filter { System.currentTimeMillis() - it.time < LAST_KNOWN_MS }
+            .maxByOrNull { it.time }
     }
 
-    // No position in time. With Location on, that's usually GPS alone indoors: the phone's Wi-Fi positioning
-    // (Google Location Accuracy) is off, so the network provider is too. Then say so and offer its settings.
-    // Calls `then` with the message for the page.
-    fun noFix(then: (String) -> Unit) {
-        val manager = activity.getSystemService(LocationManager::class.java)
-        val wifiPositioning = runCatching { manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) }.getOrDefault(false)
-        if (wifiPositioning) return then(text(R.string.no_fix))
-        explain(R.string.no_fix_title, text(R.string.no_fix_gps_only_text), R.string.open_settings, R.string.not_now) { ok ->
-            if (ok) openAccuracySettings()
-            then(text(R.string.no_fix_gps_only))
+    // From the page's "Settings" next to a location problem: Location settings when Location is off, else
+    // Google's own "Location Accuracy" page (Wi-Fi positioning) where Play services has one.
+    fun openSettings() {
+        if (locationOn()) {
+            try {
+                return activity.startActivity(Intent(GOOGLE_LOCATION_ACCURACY))
+            } catch (e: ActivityNotFoundException) {
+                // Not on this phone: its Location settings have the same switch.
+            }
         }
-    }
-
-    // Google's own "Location Accuracy" page where Play services has one, else the phone's Location settings.
-    private fun openAccuracySettings() {
-        try {
-            activity.startActivity(Intent(GOOGLE_LOCATION_ACCURACY))
-        } catch (e: ActivityNotFoundException) {
-            open(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-        }
+        open(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
     }
 
     private fun locationOn(): Boolean {
