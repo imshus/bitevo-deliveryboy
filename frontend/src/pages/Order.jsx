@@ -18,55 +18,70 @@ import { Back, Camera, Cash, Check, Navigate, Note, Phone, Pin, Store, Alert, St
 import { shrinkPhoto } from '../lib/proof.js';
 
 const FAR_FROM_DROP_M = 250;
-const MAX_PHOTOS = 4;
+// Photos at the door: at least MIN_PHOTOS before "Delivered", up to MAX_PHOTOS (the API checks the same numbers).
+const MIN_PHOTOS = 4;
+const MAX_PHOTOS = 6;
 
 // At the door: photos of the handover, each saved on the order straight away, so `o` always says what's done.
+// Several can be picked at once where the phone allows it; in the app each tap takes one with the camera.
 function Proof({ o, onSaved }) {
   const photoInput = useRef(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(0); // photos still being sent
   const [error, setError] = useState('');
   const photos = o.deliveryPhotos || [];
+  const left = Math.max(0, MIN_PHOTOS - photos.length);
 
-  const addPhoto = async e => {
-    const file = e.target.files?.[0];
+  const addPhotos = async e => {
+    const files = [...(e.target.files || [])].slice(0, MAX_PHOTOS - photos.length);
     e.target.value = '';
-    if (!file) return;
-    setUploading(true);
+    if (!files.length) return;
     setError('');
+    setUploading(files.length);
     try {
-      await api.deliveryPhoto(o._id, await shrinkPhoto(file));
-      await onSaved();
+      for (const file of files) {
+        await api.deliveryPhoto(o._id, await shrinkPhoto(file));
+        setUploading(n => n - 1);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
-      setUploading(false);
+      setUploading(0);
+      await onSaved().catch(() => {});
     }
   };
 
   return (
     <div className="proof">
-      <div className={`proof__step${photos.length ? ' is-done' : ''}`}>
-        <b>Photo of the order at the door</b>
+      <div className={`proof__step${left ? '' : ' is-done'}`}>
+        <b>
+          Photos of the handover
+          <span className="proof__count">{photos.length} of {MIN_PHOTOS}{photos.length > MIN_PHOTOS ? '+' : ''}</span>
+        </b>
+        <p className="muted small">
+          {left ? `Take at least ${MIN_PHOTOS}: the order, the door or house number, and the customer receiving it. ${left} more to go.`
+            : 'Enough photos. You can add more if something needs showing.'}
+        </p>
         <div className="proof__photos">
           {photos.map(src => <img key={src} src={src} alt="Delivery photo" />)}
           {photos.length < MAX_PHOTOS && (
-            <button type="button" className="proof__add" disabled={uploading} onClick={() => photoInput.current.click()}>
+            <button type="button" className="proof__add" disabled={uploading > 0} onClick={() => photoInput.current.click()}>
               {uploading ? <Spinner /> : <><Camera size={22} />{photos.length ? 'Add another' : 'Take photo'}</>}
             </button>
           )}
         </div>
-        <input ref={photoInput} type="file" accept="image/*" capture="environment" hidden onChange={addPhoto} />
+        <input ref={photoInput} type="file" accept="image/*" capture="environment" multiple hidden onChange={addPhotos} />
       </div>
       {error && <p className="banner banner--warn"><Alert size={18} /> {error}</p>}
     </div>
   );
 }
 
+// The rider's two stages: first to the kitchen to pick the order up, then to the customer to deliver it.
 function Steps({ status }) {
-  const done = { placed: 1, preparing: 1, out_for_delivery: 2, delivered: 3 }[status] || 0;
+  const done = { placed: 0, preparing: 0, out_for_delivery: 1, delivered: 3 }[status] || 0;
   return (
     <ol className="steps">
-      {['Accepted', 'Picked up', 'Delivered'].map((label, i) => (
+      {['Pick up from kitchen', 'Deliver to customer', 'Delivered'].map((label, i) => (
         <li key={label} className={i < done ? 'is-done' : i === done ? 'is-now' : ''}>
           <span>{i < done ? <Check size={14} /> : i + 1}</span>{label}
         </li>
@@ -177,8 +192,8 @@ export default function OrderPage() {
   }
 
   const cash = o.cashToCollect;
-  const photoDone = o.deliveryPhotos?.length > 0;
-  const proofDone = photoDone;
+  const photoCount = o.deliveryPhotos?.length || 0;
+  const proofDone = photoCount >= MIN_PHOTOS;
   const legLabel = beforePickup && o.mine && me ? 'to the kitchen' : 'to the customer';
 
   return (
@@ -300,7 +315,7 @@ export default function OrderPage() {
             </label>
           ) : <p className="muted">Paid online. Don’t take any money.</p>}
           <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy || !proofDone || (cash > 0 && !cashOk)} onClick={deliver}>
-            {busy ? <Spinner /> : proofDone ? 'Confirm delivery' : 'Take a photo first'}
+            {busy ? <Spinner /> : proofDone ? 'Confirm delivery' : `Take ${MIN_PHOTOS - photoCount} more photo${MIN_PHOTOS - photoCount === 1 ? '' : 's'} first`}
           </button>
           <button type="button" className="btn btn--ghost btn--block" onClick={() => setConfirm(null)}>Not yet</button>
         </Sheet>

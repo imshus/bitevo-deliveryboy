@@ -4,10 +4,11 @@ import { money, ago, when, plural } from '../lib/format.js';
 import { StatusChip, Spinner } from './ui.jsx';
 import { Chevron, Star } from './Icons.jsx';
 
+// The rider's two stages: 1. pick up from the kitchen, 2. deliver to the customer.
 const NEXT_STEP = {
-  placed: 'The kitchen will accept it shortly',
-  preparing: 'Head to the kitchen to pick it up',
-  out_for_delivery: 'Deliver to the customer',
+  placed: 'Step 1 · Pick up from the kitchen (the kitchen is accepting it)',
+  preparing: 'Step 1 · Pick up from the kitchen',
+  out_for_delivery: 'Step 2 · Deliver to the customer',
 };
 
 // Riders only see an amount when they collect it (cash or UPI on delivery), never for orders paid online.

@@ -175,9 +175,10 @@ router.post('/:id/pickup', async (req, res) => {
 // `cashCollected`: on cash orders, the amount the rider confirms they took (must be the amount due).
 // `lat`/`lng`: where the rider was, kept with the order.
 // Proof of delivery, at the door, before "Delivered": photos of the handover, taken with the phone's camera (the
-// raw image, shrunk by the app), up to MAX_PHOTOS. At least one is needed to mark the order delivered in the
-// app (the admin panel can still mark it delivered).
-const MAX_PHOTOS = 4;
+// raw image, shrunk by the app), at least MIN_PHOTOS and up to MAX_PHOTOS, to mark the order delivered in the
+// app (the admin panel can still mark it delivered). The rider app has the same numbers (pages/Order.jsx).
+const MIN_PHOTOS = 4;
+const MAX_PHOTOS = 6;
 const photoBody = express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '6mb' });
 router.post('/:id/photo', photoBody, async (req, res) => {
   const agent = req.agent;
@@ -206,7 +207,10 @@ router.post('/:id/deliver', async (req, res) => {
   if (order.status !== 'out_for_delivery') {
     throw badRequest(order.status === 'delivered' ? 'This order is already delivered.' : 'Mark the order picked up first.');
   }
-  if (!order.deliveryPhotos?.length) throw badRequest('Take a photo of the order at the door first.');
+  const taken = order.deliveryPhotos?.length || 0;
+  if (taken < MIN_PHOTOS) {
+    throw badRequest(`Take at least ${MIN_PHOTOS} photos of the handover first (${taken} so far): the order, the door, and the customer receiving it.`);
+  }
   const due = cashToCollect(order);
   if (due > 0 && Number(req.body?.cashCollected) !== due) throw badRequest(`Collect ${money(due)} in cash, then confirm.`);
 
