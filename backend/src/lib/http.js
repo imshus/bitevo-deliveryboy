@@ -28,6 +28,11 @@ export function errorHandler(err, req, res, _next) {
   if (err.type === 'entity.too.large') return res.status(413).json({ error: 'That request is too large.' });
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'The request body is not valid JSON.' });
   if (err.code === 11000) return res.status(409).json({ error: 'That value is already in use.' });
+  // Express's own 4xx errors (http-errors, which always set `expose`), e.g. a /photos/<file> that isn't there.
+  // Other errors that merely carry a status, like Supabase's, stay a 500 below.
+  if (typeof err.expose === 'boolean' && err.status >= 400 && err.status < 500) {
+    return res.status(err.status).json({ error: err.status === 404 ? 'Not found.' : err.expose ? err.message : 'That request was refused.' });
+  }
   console.error(err);
   res.status(500).json({ error: 'Something went wrong on our side. Please try again.' });
 }
