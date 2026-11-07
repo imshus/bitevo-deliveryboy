@@ -71,7 +71,8 @@ and vehicle; set the ID check to Verified).
   needs **proof at the door**, always: at least **4 camera photos** of the handover (up to 6; the order, the door
   or house number, the customer receiving it; taken with the camera, never from the gallery), then the cash
   collected on pay-on-delivery orders. A warning shows when the rider is more than 250 m from the
-  customer's pin. The photos are saved to Supabase Storage and shown on the website's and the panel's order pages.
+  customer's pin. The photos are saved to Supabase Storage (see [Delivery photos](#delivery-photos)) and listed on
+  the order (`deliveryPhotos`); the website and the admin panel don't show them yet.
 - **Today:** deliveries, cash collected and distance travelled; **History** for today, 7 or 30 days with average
   time and rating; **Profile** with their details, location-sharing status and help numbers.
 
@@ -98,7 +99,7 @@ fine for trying it out, but for a real fleet host OSRM or use a paid routing ser
 draws straight lines.
 
 The customer sees the same live position: the website's order page shows the rider moving on a Google map while
-the order is out for delivery (refreshing every 8 s), and the photos taken at the door once it's delivered.
+the order is out for delivery (refreshing every 8 s).
 
 ## How data lines up with the admin panel
 
@@ -123,12 +124,37 @@ order from the panel; the app picks up those changes within 10 seconds.
 | `SELF_ASSIGN` | `true` | Self-assign until the admin panel's switch (Live map → Waiting for a rider) is first used; the switch wins after that |
 | `GOOGLE_MAPS_KEY`, `GOOGLE_MAPS_BROWSER_KEY` | none | Google Maps for the app's map (else OpenStreetMap) |
 | `GOOGLE_GEOLOCATION_KEY` | `GOOGLE_MAPS_KEY` | Google's Geolocation API (enable it on the key; billed per lookup): finds Android riders indoors from Wi-Fi when their GPS can't (`POST /api/rider/locate`) |
-| `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_DELIVERY_BUCKET` | none, none, `bitevo-delivery-photos` | Where delivery photos go (the admin panel's Supabase project). Empty = `backend/data/photos` |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_DELIVERY_BUCKET` | none, none, `bitevo-delivery-photos` | Where delivery photos go: the admin panel's Supabase project. **Set them on the live server**; empty = this server's disk (below) |
 | `MAX_ACTIVE_ORDERS` | `2` | Orders a rider can carry at once |
 | `OFFLINE_AFTER_MINS` | `20` | Silence before an idle rider is set offline |
 | `TRACK_KEEP_DAYS` | `30` | How long driven routes are kept |
 | `ROUTING_URL` | public OSRM demo | Empty = straight lines |
 | `OTP_DEV_MODE`, `MINIMOTH_API_KEY` | `true`, none | Real sign-in codes: set the website's MiniMoth key and `OTP_DEV_MODE=false` |
+
+## Delivery photos
+
+The photos riders take at the door go to **Supabase Storage**, in the admin panel's project: copy
+`SUPABASE_URL` and `SUPABASE_SECRET_KEY` from the admin panel's `backend/.env` into this one and restart. The
+public bucket `bitevo-delivery-photos` is created with the first photo; file names are random, so links can't be
+guessed. Each order keeps the links in `deliveryPhotos`.
+
+Without those two settings the photos are kept in `backend/data/photos` on this server and served at
+`/photos/<file>`: fine for trying the app, but on the live server its disk is then the only copy. The API says
+which it uses: at start (`Delivery photos: …`, with a warning when a MongoDB database is used without Supabase)
+and in `GET /api/health` (`"photos": "supabase"` or `"server"`).
+
+Photos kept on the server before Supabase was set up stay reachable at their old links. To move them, on the
+server after setting the two values:
+
+```bash
+npm run move-photos --prefix backend
+npm run move-photos --prefix backend -- --apply
+```
+
+The first is a dry run that lists them. `--apply` uploads them to the bucket and points the orders at the new
+links (old links are saved in `backend/data/backups/` first; the files stay where they were). Orders still out for
+delivery are left for the next run. From another machine, `-- --from https://driverapi.bitevo.in --apply` fetches
+the photos from the server's old links.
 
 ## Try it on a phone
 

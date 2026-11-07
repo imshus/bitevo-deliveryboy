@@ -1,8 +1,10 @@
-// Delivery photos: the rider's camera photo of the handover, taken in the app when they mark an order
+// Delivery photos: the rider's camera photos of the handover, taken in the app before they mark an order
 // delivered. With Supabase configured (SUPABASE_URL + SUPABASE_SECRET_KEY, the same project as the admin
 // panel's photos) they go to a public Supabase Storage bucket (SUPABASE_DELIVERY_BUCKET), under random names
 // nobody can guess, so the website and the admin panel can show them. Without it they're kept in
-// backend/data/photos and served by this API at /photos/<file> (fine for trying the app).
+// backend/data/photos and served by this API at /photos/<file> (fine for trying the app, not for the live
+// one: the server's disk is the only copy). Photos kept that way earlier stay served there, and
+// `npm run move-photos` moves them to Supabase (movePhotos.js).
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -11,7 +13,13 @@ import { config } from '../config.js';
 const { url: SUPABASE_URL, key: SUPABASE_KEY, bucket: BUCKET } = config.supabase;
 export const usesSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY);
 export const photosDir = path.join(path.dirname(config.dataFile), 'photos');
-export const storageLabel = usesSupabase ? `Supabase Storage (bucket "${BUCKET}")` : `local folder ${photosDir}`;
+export const storageLabel = usesSupabase ? `Supabase Storage (bucket "${BUCKET}")` : `this server's folder ${photosDir}`;
+
+// "/photos/<file>" (a photo kept on this server) → "<file>"; a Supabase link or anything else → null.
+export function localPhotoName(url) {
+  const name = typeof url === 'string' && url.startsWith('/photos/') ? url.slice('/photos/'.length) : '';
+  return /^[^/\\]+\.(jpg|png|webp)$/.test(name) && !name.includes('..') ? name : null;
+}
 
 const TYPES = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 
@@ -69,18 +77,22 @@ function ensureBucket() {
   return bucketReady;
 }
 
-// Stores one photo of an order and returns its link.
-export async function saveDeliveryPhoto(order, body, ext) {
-  const name = `${order.orderNo || order._id}-${crypto.randomBytes(12).toString('hex')}.${ext}`;
-  if (!usesSupabase) {
-    await fs.mkdir(photosDir, { recursive: true });
-    await fs.writeFile(path.join(photosDir, name), body);
-    return `/photos/${name}`;
-  }
+// Puts one photo in the Supabase bucket under `name` and returns its public link. `overwrite` replaces a file
+// of that name (the mover, when it runs again after an interruption).
+export async function uploadPhoto(name, body, ext, { overwrite = false } = {}) {
   await ensureBucket();
   await supabase('POST', `object/${BUCKET}/${encodeURIComponent(name)}`, {
     body,
-    headers: { 'Content-Type': TYPES[ext], 'Cache-Control': 'max-age=31536000', 'x-upsert': 'false' },
+    headers: { 'Content-Type': TYPES[ext], 'Cache-Control': 'max-age=31536000', 'x-upsert': String(overwrite) },
   });
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${encodeURIComponent(name)}`;
+}
+
+// Stores one photo of an order and returns its link.
+export async function saveDeliveryPhoto(order, body, ext) {
+  const name = `${order.orderNo || order._id}-${crypto.randomBytes(12).toString('hex')}.${ext}`;
+  if (usesSupabase) return uploadPhoto(name, body, ext);
+  await fs.mkdir(photosDir, { recursive: true });
+  await fs.writeFile(path.join(photosDir, name), body);
+  return `/photos/${name}`;
 }

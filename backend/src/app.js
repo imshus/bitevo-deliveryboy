@@ -59,7 +59,8 @@ export function createApp() {
   app.use(cookieParser());
   app.use('/api', express.json({ limit: '100kb' }));
 
-  app.get('/api/health', (req, res) => res.json({ ok: true, store: store.kind }));
+  // `photos` says where new delivery photos go: "supabase", or "server" (this server's disk, lib/photos.js).
+  app.get('/api/health', (req, res) => res.json({ ok: true, store: store.kind, photos: usesSupabase ? 'supabase' : 'server' }));
   // What the app needs before sign-in.
   app.get('/api/config', async (req, res) => res.json({
     kitchen: config.kitchen,
@@ -90,8 +91,9 @@ export function createApp() {
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
-  // Delivery photos kept on this server when Supabase isn't set up (lib/photos.js).
-  if (!usesSupabase) app.use('/photos', express.static(photosDir, { index: false, maxAge: '30d', fallthrough: false }));
+  // Delivery photos kept on this server (lib/photos.js): new ones when Supabase isn't set up, and those from
+  // before it was, so their links keep working until `npm run move-photos` has moved them.
+  app.use('/photos', express.static(photosDir, { index: false, maxAge: '30d', fallthrough: false }));
 
   const appIndex = path.join(config.clientDir, 'index.html');
   app.locals.servesApp = fs.existsSync(appIndex);
