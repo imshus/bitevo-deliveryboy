@@ -66,11 +66,11 @@ and vehicle; set the ID check to Verified).
   what to collect: "Collect ₹518 · cash or UPI" on pay-on-delivery orders. Orders paid online or from the wallet
   show no amount at all ("Paid online · nothing to collect"). Riders never see anything about the customer's
   wallet: the API sends only "Cash on delivery" with the amount to collect, or "Paid online".
-- **Picked up** (when the kitchen is preparing it) → **Delivered**. Delivering needs **proof at the door**, always:
-  1. one or more **camera photos** of the handover (up to 4; taken with the camera, never from the gallery),
-  2. the **barcode on the order's label** scanned (the kitchen prints it from the admin panel; it's the order
-     number). Another order's label or any other barcode is refused, and the panel counts wrong scans,
-  then the cash collected on pay-on-delivery orders. A warning shows when the rider is more than 250 m from the
+- **Two stages, shown on each order:** step 1 **Pick up from kitchen** (going to the kitchen; "Picked up from
+  kitchen" once the kitchen is preparing it), then step 2 **Deliver to customer** → **Delivered**. Delivering
+  needs **proof at the door**, always: at least **4 camera photos** of the handover (up to 6; the order, the door
+  or house number, the customer receiving it; taken with the camera, never from the gallery), then the cash
+  collected on pay-on-delivery orders. A warning shows when the rider is more than 250 m from the
   customer's pin. The photos are saved to Supabase Storage and shown on the website's and the panel's order pages.
 - **Today:** deliveries, cash collected and distance travelled; **History** for today, 7 or 30 days with average
   time and rating; **Profile** with their details, location-sharing status and help numbers.
@@ -105,7 +105,7 @@ the order is out for delivery (refreshing every 8 s), and the photos taken at th
 | Collection | This app | Notes |
 |---|---|---|
 | `agents` | reads; writes `status`, `location`, `odometer`, `onlineVia`, `onlineAt` | Riders are the panel's agents. `status` online / busy ("On delivery") / offline, as the panel shows it |
-| `orders` | reads; writes the rider's steps | Accept = the panel's "assign"; Picked up = `out_for_delivery` + `dispatchedAt`; Delivered = `delivered` + `deliveredAt`, `deliveryMins`, `cashCollected`, `deliveredFrom`. Proof of delivery: `deliveryPhotos` ([{ url, at, agentId, agentName }]), `barcodeCheckedAt`, `barcodeMismatches`. Each step goes into `history` with `by: "<name> (delivery app)"`, which the panel's order page already lists |
+| `orders` | reads; writes the rider's steps | Accept = the panel's "assign"; Picked up = `out_for_delivery` + `dispatchedAt`; Delivered = `delivered` + `deliveredAt`, `deliveryMins`, `cashCollected`, `deliveredFrom`. Proof of delivery: `deliveryPhotos` ([{ url, at, agentId, agentName }]). Each step goes into `history` with `by: "<name> (delivery app)"`, which the panel's order page already lists |
 | `settings` (`app`) | reads `deliverySelfAssign` | The panel's Live map switch: "Kitchen assigns" or "Riders can self-assign" (re-read every 15 s) |
 | `walletTxns` | writes | Coupon cashback on delivery, exactly as the panel's "Delivered" button does |
 | `sessions`, `loginEvents` | writes | `role: 'agent'`, shown on the panel's Login status page (and revocable there) |

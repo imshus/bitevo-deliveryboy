@@ -50,9 +50,8 @@ function riderOrder(o, agent) {
     deliveryMins: o.deliveryMins ?? null,
     cashCollected: o.cashCollected ?? null,
     rating: o.rating ?? null,
-    // Proof of delivery: the rider's photos of the handover and the order's barcode label scanned at the door.
+    // Proof of delivery: the rider's photos of the handover.
     deliveryPhotos: mine ? (o.deliveryPhotos || []).map(ph => ph.url) : [],
-    barcodeChecked: mine ? Boolean(o.barcodeCheckedAt) : false,
     cancelledAt: mine ? o.cancelledAt || null : null,
     cancelReason: mine ? o.cancelReason || null : null,
     history: mine ? (o.history || []).map(h => ({ status: h.status, note: h.note || '', at: h.at, by: h.by || '' })) : [],
@@ -175,12 +174,11 @@ router.post('/:id/pickup', async (req, res) => {
 
 // `cashCollected`: on cash orders, the amount the rider confirms they took (must be the amount due).
 // `lat`/`lng`: where the rider was, kept with the order.
-// Proof of delivery, at the door, before "Delivered":
-//  1. photos of the handover, taken with the phone's camera (the raw image, shrunk by the app), up to MAX_PHOTOS;
-//  2. the barcode on the order's label (the kitchen prints it from the admin panel: the order number),
-//     scanned with the camera; another order's label is refused.
-// Both are always needed to mark the order delivered in the app (the admin panel can still mark it delivered).
-const MAX_PHOTOS = 4;
+// Proof of delivery, at the door, before "Delivered": photos of the handover, taken with the phone's camera (the
+// raw image, shrunk by the app), at least MIN_PHOTOS and up to MAX_PHOTOS, to mark the order delivered in the
+// app (the admin panel can still mark it delivered). The rider app has the same numbers (pages/Order.jsx).
+const MIN_PHOTOS = 4;
+const MAX_PHOTOS = 6;
 const photoBody = express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '6mb' });
 router.post('/:id/photo', photoBody, async (req, res) => {
   const agent = req.agent;
@@ -203,35 +201,16 @@ router.post('/:id/photo', photoBody, async (req, res) => {
   res.json(riderOrder(saved, agent));
 });
 
-// "BV1028-001", " bv1028 001 " and "BV1028001" are the same label.
-const labelCode = value => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-router.post('/:id/scan', async (req, res) => {
-  const agent = req.agent;
-  const order = await ownOrder(req);
-  if (order.status !== 'out_for_delivery') throw badRequest('Scan the label when you hand the order over.');
-  const code = labelCode(req.body?.code).slice(0, 60);
-  if (!code) throw badRequest('No barcode was read. Try again, holding the label flat and in good light.');
-  if (code !== labelCode(order.orderNo)) {
-    const other = await store.findOne('orders', { orderNo: { $in: [String(req.body.code).trim().toUpperCase()] } }, { projection: { orderNo: 1 } });
-    await store.update('orders', order._id, { barcodeMismatches: (order.barcodeMismatches || 0) + 1 });
-    throw badRequest(other
-      ? `This label is for order ${other.orderNo}, not ${order.orderNo}. Check you’re handing over the right bag.`
-      : `This barcode doesn’t match order ${order.orderNo}. Scan the BiteVo label on the bag.`);
-  }
-  const saved = await store.updateWhere('orders', { _id: order._id, agentId: agent._id, status: 'out_for_delivery' }, { barcodeCheckedAt: nowIso() });
-  if (!saved) throw await whyNot(order._id, agent);
-  res.json(riderOrder(saved, agent));
-});
-
 router.post('/:id/deliver', async (req, res) => {
   const agent = req.agent;
   const order = await ownOrder(req);
   if (order.status !== 'out_for_delivery') {
     throw badRequest(order.status === 'delivered' ? 'This order is already delivered.' : 'Mark the order picked up first.');
   }
-  if (!order.deliveryPhotos?.length) throw badRequest('Take a photo of the order at the door first.');
-  if (!order.barcodeCheckedAt) throw badRequest('Scan the barcode on the order’s label first.');
+  const taken = order.deliveryPhotos?.length || 0;
+  if (taken < MIN_PHOTOS) {
+    throw badRequest(`Take at least ${MIN_PHOTOS} photos of the handover first (${taken} so far): the order, the door, and the customer receiving it.`);
+  }
   const due = cashToCollect(order);
   if (due > 0 && Number(req.body?.cashCollected) !== due) throw badRequest(`Collect ${money(due)} in cash, then confirm.`);
 
