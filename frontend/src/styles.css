@@ -291,6 +291,11 @@ p.center { text-align: center; }
 .paybox b { font-size: 17px; }
 .paybox span { font-size: 13px; opacity: .85; }
 .paybox--cash { background: var(--red); color: var(--white); }
+.paybox > div { flex: 1; min-width: 0; }
+.paybox__upi {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 10px; padding: 9px 11px;
+  background: var(--white); color: var(--red); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
 .paybox--paid { background: var(--green-soft); color: var(--green); }
 .done { flex-direction: row; align-items: flex-start; color: var(--green); }
 .done div { display: flex; flex-direction: column; color: var(--ink); font-size: 14px; }
@@ -314,6 +319,28 @@ p.center { text-align: center; }
 .check { display: flex; gap: 12px; align-items: center; background: var(--bg); border-radius: 12px; padding: 14px; font-size: 15px; cursor: pointer; }
 .check input { width: 24px; height: 24px; accent-color: var(--green); flex: none; }
 .sheet { max-height: 92dvh; overflow-y: auto; }
+
+/* Payment at the door in the deliver sheet: cash, or UPI with BiteVo's QR code. */
+.payat { display: flex; flex-direction: column; gap: 10px; }
+.payat__title { font-size: 15.5px; }
+.segmented.segmented--2 { grid-template-columns: repeat(2, 1fr); }
+.segmented--2 button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.upi {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  border: 1px solid var(--line); border-radius: 16px; padding: 12px 12px 14px; background: var(--white);
+}
+.upi__to { font-size: 13.5px; color: var(--muted); }
+.upi__to b { color: var(--ink); }
+/* Pure black on white, never scaled blurry, and as big as the screen allows: scanners need contrast. */
+.upi__qr { width: min(100%, 300px); height: auto; aspect-ratio: 1; image-rendering: pixelated; background: #FFF; }
+.upi__amount { font-size: 30px; font-weight: 800; letter-spacing: .01em; }
+.upi__apps { font-size: 12.5px; color: var(--muted); }
+.payat .field input {
+  width: 100%; border: 2px solid var(--line); border-radius: 12px; padding: 11px 12px; outline: 0;
+  font: inherit; font-size: 16px; letter-spacing: .04em; background: var(--white);
+}
+.payat .field input:focus { border-color: var(--red); }
+.payat .field > span { font-size: 13.5px; font-weight: 600; }
 
 /* Proof of delivery in the deliver sheet: photos of the handover. */
 .proof { display: flex; flex-direction: column; gap: 12px; }

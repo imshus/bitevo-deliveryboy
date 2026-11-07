@@ -26,7 +26,7 @@ export default function History() {
 
         <section className="stats stats--4">
           <div><b>{h ? h.deliveries : '–'}</b><span>Delivered</span></div>
-          <div><b>{h ? money(h.cashCollected) : '–'}</b><span>Cash collected</span></div>
+          <div><b>{h ? money(h.cashCollected) : '–'}</b><span>Cash collected{h?.upiCollected > 0 ? ` · +${money(h.upiCollected)} UPI` : ''}</span></div>
           <div><b>{h?.avgMins != null ? `${h.avgMins} min` : '–'}</b><span>Avg. time</span></div>
           <div><b>{h?.avgRating != null ? `${h.avgRating}★` : '–'}</b><span>{h?.ratings ? plural(h.ratings, 'rating') : 'Rating'}</span></div>
         </section>

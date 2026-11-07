@@ -134,7 +134,7 @@ export default function Home() {
 
         <section className="stats" aria-label="Today">
           <div><b>{t ? t.deliveries : '–'}</b><span>Delivered today</span></div>
-          <div><b>{t ? money(t.cashCollected) : '–'}</b><span>Cash collected</span></div>
+          <div><b>{t ? money(t.cashCollected) : '–'}</b><span>Cash collected{t?.upiCollected > 0 ? ` · +${money(t.upiCollected)} UPI` : ''}</span></div>
           <div><b>{t ? `${t.km} km` : '–'}</b><span>Travelled</span></div>
         </section>
 

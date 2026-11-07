@@ -73,8 +73,9 @@ export function PastOrderRow({ order }) {
       <div className="prow__side">
         {order.status === 'delivered' ? (
           <>
-            <b>{order.cashCollected ? money(order.cashCollected) : 'Online'}</b>
-            {order.rating ? <span className="stars"><Star size={13} /> {order.rating}</span> : <span>{order.cashCollected ? 'cash' : 'paid'}</span>}
+            <b>{order.collectedVia === 'upi' ? money(order.upiCollected) : order.cashCollected ? money(order.cashCollected) : 'Online'}</b>
+            {order.rating ? <span className="stars"><Star size={13} /> {order.rating}</span>
+              : <span>{order.collectedVia === 'upi' ? 'UPI' : order.cashCollected ? 'cash' : 'paid'}</span>}
           </>
         ) : <StatusChip status={order.status} />}
       </div>

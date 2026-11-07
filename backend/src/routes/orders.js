@@ -48,7 +48,12 @@ function riderOrder(o, agent) {
     dispatchedAt: o.dispatchedAt || null,
     deliveredAt: o.deliveredAt || null,
     deliveryMins: o.deliveryMins ?? null,
+    // How a pay-on-delivery order was paid at the door: 'cash' (cashCollected) or 'upi' (upiCollected, by the
+    // BiteVo UPI QR the rider showed). Orders delivered before UPI was offered only have cashCollected.
+    collectedVia: o.collectedVia || (o.cashCollected > 0 ? 'cash' : null),
     cashCollected: o.cashCollected ?? null,
+    upiCollected: o.upiCollected ?? null,
+    upiRef: mine ? o.upiRef || null : null,
     rating: o.rating ?? null,
     // Proof of delivery: the rider's photos of the handover.
     deliveryPhotos: mine ? (o.deliveryPhotos || []).map(ph => ph.url) : [],
@@ -172,7 +177,13 @@ router.post('/:id/pickup', async (req, res) => {
   res.json(riderOrder(saved, agent));
 });
 
-// `cashCollected`: on cash orders, the amount the rider confirms they took (must be the amount due).
+// Pay-on-delivery orders are paid at the door in cash, or by UPI to BiteVo's Razorpay QR code that the rider
+// shows (frontend/src/assets/upi-qr.png). The rider confirms the amount due:
+//   cash: { cashCollected }                              (what older app versions always send)
+//   UPI:  { paidVia: 'upi', upiCollected, upiRef? }      upiRef: the UPI reference number from the customer's
+//                                                        payment screen, to find the payment in Razorpay
+// The order stays "Cash on delivery" (so the admin panel never offers a Razorpay refund for it); `collectedVia`
+// says how it was paid, and only cash counts as cash the rider carries.
 // `lat`/`lng`: where the rider was, kept with the order.
 // Proof of delivery, at the door, before "Delivered": photos of the handover, taken with the phone's camera (the
 // raw image, shrunk by the app), at least MIN_PHOTOS and up to MAX_PHOTOS, to mark the order delivered in the
@@ -212,7 +223,16 @@ router.post('/:id/deliver', async (req, res) => {
     throw badRequest(`Take at least ${MIN_PHOTOS} photos of the handover first (${taken} so far): the order, the door, and the customer receiving it.`);
   }
   const due = cashToCollect(order);
-  if (due > 0 && Number(req.body?.cashCollected) !== due) throw badRequest(`Collect ${money(due)} in cash, then confirm.`);
+  const byUpi = due > 0 && req.body?.paidVia === 'upi';
+  if (due > 0 && !byUpi && Number(req.body?.cashCollected) !== due) throw badRequest(`Collect ${money(due)} in cash, then confirm.`);
+  if (byUpi && Number(req.body?.upiCollected) !== due) throw badRequest(`Make sure ${money(due)} was paid by UPI, then confirm.`);
+  const upiRef = byUpi ? String(req.body?.upiRef || '').replace(/\s+/g, '').toUpperCase() : '';
+  if (upiRef && !/^[A-Z0-9]{6,35}$/.test(upiRef)) {
+    throw badRequest('That UPI reference doesn’t look right. It’s the number on the customer’s payment screen (often 12 digits), or leave it empty.');
+  }
+  const payment = due <= 0 ? {}
+    : byUpi ? { collectedVia: 'upi', upiCollected: due, cashCollected: 0, ...(upiRef && { upiRef }) }
+    : { collectedVia: 'cash', cashCollected: due };
 
   const at = nowIso();
   const lat = Number(req.body?.lat);
@@ -226,10 +246,14 @@ router.post('/:id/deliver', async (req, res) => {
     status: 'delivered',
     deliveredAt: at,
     deliveryMins: Math.max(1, Math.round((Date.now() - Date.parse(order.placedAt)) / MIN)),
-    ...(due > 0 && { cashCollected: due }),
+    ...payment,
     deliveredFrom: where,
     updatedAt: at,
-  }, { push: { history: historyEvent(agent, { status: 'delivered', note: 'Delivery app' }) } });
+  }, { push: { history: historyEvent(agent, {
+    status: 'delivered',
+    note: byUpi ? `Delivery app · ${money(due)} paid by UPI at the door${upiRef ? ` (ref ${upiRef})` : ''}`
+      : due > 0 ? `Delivery app · ${money(due)} collected in cash` : 'Delivery app',
+  }) } });
   if (!saved) throw await whyNot(order._id, agent);
 
   // Coupon cashback goes to the customer's wallet on delivery, exactly as the panel's "Delivered" button does.
