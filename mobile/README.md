@@ -46,8 +46,32 @@ only has to run the API, the page and the API share one address (the sign-in coo
 and the screens always match the app. New screens mean a new APK. Live builds allow no plain http.
 
 The APK is signed with React Native's public debug key, like the customer app: fine for installing directly.
-For the Play Store, create your own upload key (keep it and its password safe, never commit it) and use it for
-`release` in `android/app/build.gradle`.
+
+## Play Store bundle (.aab)
+
+Google Play takes an Android App Bundle signed with your own **upload key** (it refuses the debug key). Make the
+key once:
+
+```bash
+npm run make:upload-key
+```
+
+It writes `~/.bitevo/rider-upload.jks` and `~/.bitevo/rider-upload.properties` (where the key is, and its random
+password, which is never printed). Both stay out of the repo. **Back up both files** (password manager, encrypted
+drive): every update on Play must be signed with this same key; a lost key takes Play support days to reset. The
+script refuses to make a second key. To keep them elsewhere, set `BITEVO_UPLOAD_PROPERTIES` to the properties file.
+
+Then build the live app as a bundle:
+
+```bash
+npm run build:android -- -AppUrl https://driverapi.bitevo.in -Bundle
+```
+
+It is written to `mobile\BiteVoRider.aab`; upload it in Play Console. Raise `versionCode` (and `versionName`) in
+`android/app/build.gradle` before each new upload: Play refuses a version code it already has. Turn on Play App
+Signing when Play Console offers it: Google then signs the installs with its own key, and the upload key only
+proves the bundle is yours. A phone with the directly installed APK has to uninstall it before installing from Play
+(different signatures).
 
 ## Install
 

@@ -7,5 +7,10 @@ android/local.properties
 .idea/
 *.iml
 
-# The APK copied out by scripts/build-android.ps1
+# The APK and bundle copied out by scripts/build-android.ps1
 /BiteVoRider.apk
+/BiteVoRider.aab
+# Signing keys never go in the repo (the upload key lives in ~/.bitevo)
+*.jks
+*.keystore
+!android/app/debug.keystore

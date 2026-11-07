@@ -6,11 +6,17 @@
 #   npm run build:android -- -AppUrl http://192.168.1.20:2003      the dev server, from a phone on the same Wi-Fi
 #   npm run build:android -- -AppUrl https://driverapi.bitevo.in   the live app: its screens built into the APK,
 #                                                                  only the API on the server
+#   npm run build:android -- -AppUrl https://driverapi.bitevo.in -Bundle
+#                                                                  the same app as an .aab for the Play Store, signed
+#                                                                  with the upload key (scripts/make-upload-key.ps1),
+#                                                                  copied to mobile\BiteVoRider.aab
 #   npm run test:sender                                            LocationSender against the dev API (no APK)
 param(
   # The rider web app. Also the API, unless ApiUrl says it lives on another domain.
   [string]$AppUrl = $(if ($env:BITEVO_RIDER_URL) { $env:BITEVO_RIDER_URL } else { 'http://10.0.2.2:2003' }),
   [string]$ApiUrl = $env:BITEVO_RIDER_API_URL,
+  # An Android App Bundle (.aab) for the Play Store instead of the APK.
+  [switch]$Bundle,
   [switch]$Test,
   [string]$TestApi = 'http://127.0.0.1:4002'
 )
@@ -31,6 +37,9 @@ if (Test-Path "$tools\jdk") { # (not Join-Path: it fails outright for a drive th
 }
 
 $mobile = Split-Path $PSScriptRoot -Parent
+if ($Bundle -and -not $AppUrl.StartsWith('https:')) {
+  throw "Play Store bundles are for the live app: add -AppUrl https://driverapi.bitevo.in"
+}
 # Live builds (https) carry the rider web app's screens: build them now, so the APK has the current ones.
 if (-not $Test -and $AppUrl.StartsWith('https:')) {
   $frontend = Join-Path (Split-Path $mobile -Parent) 'frontend'
@@ -43,6 +52,9 @@ if (-not $Test -and $AppUrl.StartsWith('https:')) {
 }
 if ($Test) {
   $tasks = @('testDebugUnitTest', '--rerun', "-PtestApi=$TestApi")
+} elseif ($Bundle) {
+  $tasks = @('bundleRelease', '-Pplay=true', "-PappUrl=$AppUrl")
+  if ($ApiUrl) { $tasks += "-PapiUrl=$ApiUrl" }
 } else {
   $tasks = @('assembleRelease', "-PappUrl=$AppUrl")
   if ($ApiUrl) { $tasks += "-PapiUrl=$ApiUrl" }
@@ -56,7 +68,15 @@ try {
 }
 if ($Test) { return }
 
-$apk = Join-Path $mobile 'android\app\build\outputs\apk\release\app-release.apk'
+if ($Bundle) {
+  $aab = Join-Path $mobile 'android\app\build\outputs\bundle\release\app-release.aab'
+  $out = Join-Path $mobile 'BiteVoRider.aab'
+  Copy-Item $aab $out -Force
+  "Bundle ready: $out ($([math]::Round((Get-Item $out).Length / 1MB, 1)) MB), for $AppUrl, signed with the upload key"
+  return
+}
+
+$apk =Join-Path $mobile 'android\app\build\outputs\apk\release\app-release.apk'
 $out = Join-Path $mobile 'BiteVoRider.apk'
 Copy-Item $apk $out -Force
 $screens = if ($AppUrl.StartsWith('https:')) { 'screens built in' } else { 'screens from that address' }
