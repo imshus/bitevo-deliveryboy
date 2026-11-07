@@ -24,8 +24,19 @@ const num = (value, fallback) => (Number.isFinite(parseFloat(value)) ? parseFloa
 // `--port 4002` on the command line wins over PORT (the dev script pins the API to 4002).
 const argPort = Number(process.argv[process.argv.indexOf('--port') + 1] || 0) || 0;
 
-const kitchenLat = num(process.env.KITCHEN_LAT, null);
-const kitchenLng = num(process.env.KITCHEN_LNG, null);
+// A latitude or longitude: decimal ("28.4475"), or degrees, minutes and seconds as Google Maps shows them
+// (28°26'51.0"N, 77°04'12.0"E; S and W are negative). Null for anything else. (parseFloat alone read
+// 28°26'51.0"N as 28, putting the kitchen some 50 km away.)
+export function coordinate(value) {
+  const m = String(value ?? '').trim()
+    .match(/^(-?)(\d+(?:\.\d+)?)\s*°?\s*(?:(\d+(?:\.\d+)?)\s*['′’]\s*)?(?:(\d+(?:\.\d+)?)\s*(?:"|″|”|'')\s*)?([NSEW])?$/i);
+  if (!m) return null;
+  const n = (Number(m[2]) + (Number(m[3]) || 0) / 60 + (Number(m[4]) || 0) / 3600) * (m[1] || /[SW]/i.test(m[5] || '') ? -1 : 1);
+  return Number.isFinite(n) ? Math.round(n * 1e6) / 1e6 : null;
+}
+
+const kitchenLat = coordinate(process.env.KITCHEN_LAT);
+const kitchenLng = coordinate(process.env.KITCHEN_LNG);
 
 export const config = {
   port: (process.argv.includes('--port') && argPort) || Number(process.env.PORT) || 4002,

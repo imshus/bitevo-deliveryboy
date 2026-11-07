@@ -31,6 +31,46 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--host"],
       "port": 2003
+    },
+    {
+      "name": "live-admin-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "./.claude/dns-public.mjs", "../bitevoadminpanel/backend/src/server.js", "--port", "4000"],
+      "env": { "DEMO_MODE": "false" },
+      "port": 4000
+    },
+    {
+      "name": "live-site-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "./.claude/dns-public.mjs", "../bitevomainwebsite/backend/src/server.js", "--port", "4001"],
+      "port": 4001
+    },
+    {
+      "name": "live-delivery-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "./.claude/dns-public.mjs", "backend/src/server.js", "--port", "4002"],
+      "port": 4002
+    },
+    {
+      "name": "live-admin-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../bitevoadminpanel/frontend", "run", "dev"],
+      "env": { "API_PROXY_TARGET": "http://localhost:4000" },
+      "port": 2001
+    },
+    {
+      "name": "live-site-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../bitevomainwebsite/frontend", "run", "dev"],
+      "env": { "VITE_API_URL": "http://localhost:2002", "API_PROXY_TARGET": "http://localhost:4001", "ADMIN_API_PROXY_TARGET": "http://localhost:4000" },
+      "port": 2002
+    },
+    {
+      "name": "live-delivery-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "env": { "API_PROXY": "http://127.0.0.1:4002" },
+      "port": 2003
     }
   ]
 }

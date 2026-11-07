@@ -93,7 +93,7 @@ function OsmMap({ me, kitchen, stops = [], route, trail, fitKey = 'all', followM
 
   useEffect(() => {
     place('kitchen', hasPoint(kitchen),
-      () => L.marker(ll(kitchen), { icon: icon(kitchenPin(), PIN), zIndexOffset: 200, keyboard: false }).bindTooltip(kitchen.name || 'Kitchen'),
+      () => L.marker(ll(kitchen), { icon: icon(kitchenPin(kitchen.name || 'Kitchen'), PIN), zIndexOffset: 200, keyboard: false }).bindTooltip(kitchen.name || 'Kitchen'),
       m => m.setLatLng(ll(kitchen)));
   }, [kitchen?.lat, kitchen?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
