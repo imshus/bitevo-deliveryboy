@@ -1,7 +1,8 @@
 // One order: a map with the road route to the next stop (the kitchen before pickup, the customer after)
 // and the route driven so far; the customer, their address and note, call and navigate buttons, what to
-// collect (an amount only when the customer pays on delivery); and the next step (accept → picked up →
-// delivered). Delivering takes proof at the door: camera photos of the handover (lib/proof.js).
+// collect (an amount only when the customer pays on delivery: cash, or UPI to BiteVo's QR code shown on the
+// rider's phone); and the next step (accept → picked up → delivered). Delivering takes proof at the door:
+// camera photos of the handover (lib/proof.js).
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
@@ -16,11 +17,66 @@ import { LocationLine } from '../components/LiveStatus.jsx';
 import { Sheet, Spinner, StatusChip, useToast } from '../components/ui.jsx';
 import { Back, Camera, Cash, Check, Navigate, Note, Phone, Pin, Store, Alert, Star } from '../components/Icons.jsx';
 import { shrinkPhoto } from '../lib/proof.js';
+// BiteVo's Razorpay UPI QR code (any UPI app; the customer types the amount). Cropped from Razorpay's poster.
+import upiQr from '../assets/upi-qr.png';
 
 const FAR_FROM_DROP_M = 250;
 // Photos at the door: at least MIN_PHOTOS before "Delivered", up to MAX_PHOTOS (the API checks the same numbers).
 const MIN_PHOTOS = 4;
 const MAX_PHOTOS = 6;
+
+// At the door, on a pay-on-delivery order: how the customer pays the amount due. Cash, or UPI: the rider
+// shows BiteVo's QR code, the customer pays the exact amount with any UPI app, and the rider confirms once
+// the customer's phone shows it paid (the UPI reference from that screen is optional).
+function PayAtDoor({ amount, name, pay, setPay }) {
+  const first = name.split(' ')[0];
+  const set = change => setPay(p => ({ ...p, ...change }));
+  return (
+    <div className="payat">
+      <b className="payat__title">{first} pays {money(amount)}</b>
+      <div className="segmented segmented--2" role="tablist" aria-label="How the customer pays">
+        <button type="button" role="tab" aria-selected={pay.by === 'cash'} className={pay.by === 'cash' ? 'is-on' : ''} onClick={() => set({ by: 'cash', ok: false })}>
+          <Cash size={16} /> Cash
+        </button>
+        <button type="button" role="tab" aria-selected={pay.by === 'upi'} className={pay.by === 'upi' ? 'is-on' : ''} onClick={() => set({ by: 'upi', ok: false })}>
+          <QrIcon /> UPI · show QR
+        </button>
+      </div>
+      {pay.by === 'upi' ? (
+        <>
+          <div className="upi">
+            <span className="upi__to">Pay to <b>BiteVo</b></span>
+            <img className="upi__qr" src={upiQr} alt="BiteVo UPI QR code" width="448" height="448" />
+            <span className="upi__amount">{money(amount)}</span>
+            <span className="upi__apps">Scan with any UPI app: Google Pay, PhonePe, Paytm, BHIM…</span>
+          </div>
+          <p className="muted small">Ask {first} to scan it and enter exactly <b>{money(amount)}</b>. Wait until their phone shows the payment as successful.</p>
+          <label className="field">
+            <span>UPI reference no. <small className="muted">(optional, from {first}’s payment screen)</small></span>
+            <input type="text" inputMode="numeric" autoComplete="off" maxLength={40} placeholder="e.g. 431298765012"
+              value={pay.ref} onChange={e => set({ ref: e.target.value })} />
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={pay.ok} onChange={e => set({ ok: e.target.checked })} />
+            <span>I saw <b>{money(amount)}</b> paid by UPI on {first}’s phone</span>
+          </label>
+        </>
+      ) : (
+        <label className="check">
+          <input type="checkbox" checked={pay.ok} onChange={e => set({ ok: e.target.checked })} />
+          <span>I collected <b>{money(amount)}</b> in cash from {first}</span>
+        </label>
+      )}
+    </div>
+  );
+}
+
+const QrIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
+    <path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" />
+  </svg>
+);
 
 // At the door: photos of the handover, each saved on the order straight away, so `o` always says what's done.
 // Several can be picked at once where the phone allows it; in the app each tap takes one with the camera.
@@ -121,7 +177,9 @@ export default function OrderPage() {
   const track = usePoll(() => (carrying ? api.track(id) : Promise.resolve(null)), 20000, [id, carrying]);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(null); // 'deliver' | 'release'
-  const [cashOk, setCashOk] = useState(false);
+  // Payment at the door (pay-on-delivery orders): cash or UPI, confirmed by the rider.
+  const [pay, setPay] = useState({ by: 'cash', ok: false, ref: '' });
+  const openDeliver = by => { setPay({ by, ok: false, ref: '' }); setConfirm('deliver'); };
   const lastStatus = useRef(null);
 
   // The kitchen cancelled it while the rider was looking at it.
@@ -168,9 +226,14 @@ export default function OrderPage() {
     toast('Picked up. Head to the customer.', 'good');
     await Promise.all([order.reload(), refresh()]);
   });
-  const deliver = () => run(() => api.deliver(id, { cashCollected: o.cashToCollect || undefined, lat: me?.lat, lng: me?.lng }), async () => {
+  const byUpi = o?.cashToCollect > 0 && pay.by === 'upi';
+  const paid = !o?.cashToCollect ? {}
+    : byUpi ? { paidVia: 'upi', upiCollected: o.cashToCollect, upiRef: pay.ref.trim() || undefined }
+    : { cashCollected: o.cashToCollect };
+  const deliver = () => run(() => api.deliver(id, { ...paid, lat: me?.lat, lng: me?.lng }), async () => {
     setConfirm(null);
-    toast(o.cashToCollect ? `Delivered. ${money(o.cashToCollect)} collected.` : 'Delivered. Great job!', 'good');
+    toast(!o.cashToCollect ? 'Delivered. Great job!'
+      : byUpi ? `Delivered. ${money(o.cashToCollect)} paid by UPI.` : `Delivered. ${money(o.cashToCollect)} collected in cash.`, 'good');
     await refresh();
     navigate('/');
   });
@@ -257,9 +320,12 @@ export default function OrderPage() {
         <div className={`paybox ${cash > 0 ? 'paybox--cash' : 'paybox--paid'}`}>
           <Cash size={26} />
           {cash > 0 ? (
-            <div><b>Collect {money(cash)}</b><span>Pay on delivery · cash or UPI</span></div>
+            <div><b>Collect {money(cash)}</b><span>Pay on delivery · cash or UPI (show the BiteVo QR)</span></div>
           ) : (
             <div><b>Paid online · nothing to collect</b><span>Don’t take any money for this order</span></div>
+          )}
+          {carrying && cash > 0 && (
+            <button type="button" className="paybox__upi" onClick={() => openDeliver('upi')}><QrIcon /> UPI QR</button>
           )}
         </div>
 
@@ -268,7 +334,11 @@ export default function OrderPage() {
             <Check size={22} />
             <div>
               <b>Delivered at {clock(o.deliveredAt)}</b>
-              <span>{o.deliveryMins} min after the order{o.cashCollected ? ` · ${money(o.cashCollected)} cash collected` : ''}</span>
+              <span>
+                {o.deliveryMins} min after the order
+                {o.collectedVia === 'upi' ? ` · ${money(o.upiCollected)} paid by UPI${o.upiRef ? ` (ref ${o.upiRef})` : ''}`
+                  : o.cashCollected ? ` · ${money(o.cashCollected)} cash collected` : ''}
+              </span>
               {o.rating && <span className="stars"><Star size={14} /> Rated {o.rating} by the customer</span>}
               {o.deliveryPhotos?.length > 0 && (
                 <span className="proof__photos proof__photos--done">{o.deliveryPhotos.map(src => <img key={src} src={src} alt="Delivery photo" />)}</span>
@@ -295,7 +365,7 @@ export default function OrderPage() {
             </>
           )}
           {carrying && (
-            <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy} onClick={() => { setCashOk(false); setConfirm('deliver'); }}>
+            <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy} onClick={() => openDeliver('cash')}>
               <Check size={20} /> Mark delivered
             </button>
           )}
@@ -307,15 +377,15 @@ export default function OrderPage() {
           {fromDrop != null && fromDrop > FAR_FROM_DROP_M && (
             <p className="banner banner--warn"><Alert size={18} /> You’re {distance(fromDrop)} from the customer’s pin. Only confirm once you’ve handed the order over.</p>
           )}
+          {cash > 0
+            ? <PayAtDoor amount={cash} name={o.customerName} pay={pay} setPay={setPay} />
+            : <p className="muted">Paid online. Don’t take any money.</p>}
           <Proof o={o} onSaved={order.reload} />
-          {cash > 0 ? (
-            <label className="check">
-              <input type="checkbox" checked={cashOk} onChange={e => setCashOk(e.target.checked)} />
-              <span>I collected <b>{money(cash)}</b> (cash or UPI) from {o.customerName.split(' ')[0]}</span>
-            </label>
-          ) : <p className="muted">Paid online. Don’t take any money.</p>}
-          <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy || !proofDone || (cash > 0 && !cashOk)} onClick={deliver}>
-            {busy ? <Spinner /> : proofDone ? 'Confirm delivery' : `Take ${MIN_PHOTOS - photoCount} more photo${MIN_PHOTOS - photoCount === 1 ? '' : 's'} first`}
+          <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy || !proofDone || (cash > 0 && !pay.ok)} onClick={deliver}>
+            {busy ? <Spinner />
+              : !proofDone ? `Take ${MIN_PHOTOS - photoCount} more photo${MIN_PHOTOS - photoCount === 1 ? '' : 's'} first`
+              : cash > 0 && !pay.ok ? (pay.by === 'upi' ? 'Confirm the UPI payment first' : 'Confirm the cash first')
+              : 'Confirm delivery'}
           </button>
           <button type="button" className="btn btn--ghost btn--block" onClick={() => setConfirm(null)}>Not yet</button>
         </Sheet>

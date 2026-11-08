@@ -69,12 +69,21 @@ and vehicle; set the ID check to Verified).
 - **Two stages, shown on each order:** step 1 **Pick up from kitchen** (going to the kitchen; "Picked up from
   kitchen" once the kitchen is preparing it), then step 2 **Deliver to customer** → **Delivered**. Delivering
   needs **proof at the door**, always: at least **4 camera photos** of the handover (up to 6; the order, the door
-  or house number, the customer receiving it; taken with the camera, never from the gallery), then the cash
-  collected on pay-on-delivery orders. A warning shows when the rider is more than 250 m from the
+  or house number, the customer receiving it; taken with the camera, never from the gallery), and on
+  pay-on-delivery orders the payment (below). A warning shows when the rider is more than 250 m from the
   customer's pin. The photos are saved to Supabase Storage (see [Delivery photos](#delivery-photos)) and listed on
   the order (`deliveryPhotos`); the website and the admin panel don't show them yet.
-- **Today:** deliveries, cash collected and distance travelled; **History** for today, 7 or 30 days with average
-  time and rating; **Profile** with their details, location-sharing status and help numbers.
+- **Cash or UPI at the door:** on a pay-on-delivery order the rider picks how the customer pays. **Cash**: the
+  rider confirms they took the amount. **UPI**: the app shows BiteVo's Razorpay UPI QR code
+  (`frontend/src/assets/upi-qr.png`, UPI ID `bitevo998632.rzp@rxairtel`) with the amount in large type, the
+  customer scans it with any UPI app and enters that amount, and the rider confirms once the customer's phone
+  shows it paid, optionally typing the UPI reference number from that screen. The "UPI QR" button on the order
+  opens it straight away. The order stays "Cash on delivery" (so the admin panel never offers a Razorpay refund
+  for it) and records `collectedVia: "upi"`, `upiCollected`, `upiRef`, with a history line like "₹393 paid by
+  UPI at the door (ref …)". The QR has no amount in it; a new QR code means replacing the image and a new build.
+- **Today:** deliveries, cash collected (plus "+₹… UPI") and distance travelled; **History** for today, 7 or 30
+  days with average time and rating; **Profile** with their details, location-sharing status and help numbers.
+  Cash is what the rider carries back to the kitchen; UPI payments went straight to BiteVo.
 
 ## Live location
 
@@ -106,7 +115,7 @@ the order is out for delivery (refreshing every 8 s).
 | Collection | This app | Notes |
 |---|---|---|
 | `agents` | reads; writes `status`, `location`, `odometer`, `onlineVia`, `onlineAt` | Riders are the panel's agents. `status` online / busy ("On delivery") / offline, as the panel shows it |
-| `orders` | reads; writes the rider's steps | Accept = the panel's "assign"; Picked up = `out_for_delivery` + `dispatchedAt`; Delivered = `delivered` + `deliveredAt`, `deliveryMins`, `cashCollected`, `deliveredFrom`. Proof of delivery: `deliveryPhotos` ([{ url, at, agentId, agentName }]). Each step goes into `history` with `by: "<name> (delivery app)"`, which the panel's order page already lists |
+| `orders` | reads; writes the rider's steps | Accept = the panel's "assign"; Picked up = `out_for_delivery` + `dispatchedAt`; Delivered = `delivered` + `deliveredAt`, `deliveryMins`, `deliveredFrom`, and on pay-on-delivery orders `collectedVia` (`cash` or `upi`) with `cashCollected` or `upiCollected` (+ optional `upiRef`). Proof of delivery: `deliveryPhotos` ([{ url, at, agentId, agentName }]). Each step goes into `history` with `by: "<name> (delivery app)"`, which the panel's order page already lists |
 | `settings` (`app`) | reads `deliverySelfAssign` | The panel's Live map switch: "Kitchen assigns" or "Riders can self-assign" (re-read every 15 s) |
 | `walletTxns` | writes | Coupon cashback on delivery, exactly as the panel's "Delivered" button does |
 | `sessions`, `loginEvents` | writes | `role: 'agent'`, shown on the panel's Login status page (and revocable there) |

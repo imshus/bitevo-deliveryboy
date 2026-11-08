@@ -15,7 +15,9 @@ export function summarize(orders) {
   return {
     deliveries: delivered.length,
     cancelled: orders.length - delivered.length,
+    // Cash the rider carries back to the kitchen; UPI payments at the door went straight to BiteVo.
     cashCollected: delivered.reduce((s, o) => s + (o.cashCollected || 0), 0),
+    upiCollected: delivered.reduce((s, o) => s + (o.upiCollected || 0), 0),
     avgMins: avg(timed, o => o.deliveryMins),
     avgRating: avg(rated, o => o.rating),
     ratings: rated.length,
