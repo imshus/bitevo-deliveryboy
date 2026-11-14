@@ -34,8 +34,29 @@ export function distanceKm(a, b) {
   return 6371 * 2 * Math.asin(Math.sqrt(h));
 }
 
-// The order's drop point, when the customer picked the address on the map.
-export const dropPoint = o => (o.address?.lat != null && o.address?.lng != null ? { lat: o.address.lat, lng: o.address.lng } : null);
+// The location saved with the customer's address: a map pin, or (what the website offers without Google Maps)
+// where their phone or computer was when they tapped "I'm at this address now". The website doesn't check that
+// spot against the address, so it can be far off: a computer locating itself by its internet connection put one
+// customer in Gujarat. A spot further than MAX_DROP_KM from the kitchen can't be the address.
+const savedPoint = o => {
+  const lat = Number(o.address?.lat);
+  const lng = Number(o.address?.lng);
+  return o.address?.lat != null && o.address?.lng != null && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+};
+const tooFar = p => Boolean(p && config.kitchen && config.maxDropKm > 0 && distanceKm(config.kitchen, p) > config.maxDropKm);
+
+// The order's drop point, or null when the address has no believable location (riders then navigate by the
+// typed address).
+export function dropPoint(o) {
+  const p = savedPoint(o);
+  return p && !tooFar(p) ? p : null;
+}
+
+// How far from the kitchen a saved location was when it's ignored as impossible (km), else null.
+export function ignoredDropKm(o) {
+  const p = savedPoint(o);
+  return tooFar(p) ? Math.round(distanceKm(config.kitchen, p)) : null;
+}
 
 // Midnight of the rider's day (UTC_OFFSET_MINS, India by default), whatever time zone the server runs in.
 export function startOfDay(now = Date.now(), daysAgo = 0) {

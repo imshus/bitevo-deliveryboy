@@ -130,6 +130,7 @@ order from the panel; the app picks up those changes within 10 seconds.
 |---|---|---|
 | `KITCHEN_LAT`, `KITCHEN_LNG`, `KITCHEN_NAME`, `KITCHEN_ADDRESS`, `KITCHEN_PHONE` | none | The pickup point on the map and order screen |
 | `SUPPORT_PHONE` | none | Profile → Call BiteVo support |
+| `MAX_DROP_KM` | `10` | A customer's saved location further than this from the kitchen is ignored: the website saves where the customer's phone or computer was when they tapped "I'm at this address now", and a computer can place itself hundreds of km away. The rider then sees a warning and Navigate searches the typed address. `0` = trust every location |
 | `SELF_ASSIGN` | `true` | Self-assign until the admin panel's switch (Live map → Waiting for a rider) is first used; the switch wins after that |
 | `GOOGLE_MAPS_KEY`, `GOOGLE_MAPS_BROWSER_KEY` | none | Google Maps for the app's map (else OpenStreetMap) |
 | `GOOGLE_GEOLOCATION_KEY` | `GOOGLE_MAPS_KEY` | Google's Geolocation API (enable it on the key; billed per lookup): finds Android riders indoors from Wi-Fi when their GPS can't (`POST /api/rider/locate`) |
