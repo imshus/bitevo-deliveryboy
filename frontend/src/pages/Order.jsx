@@ -304,7 +304,12 @@ export default function OrderPage() {
           <Stop icon={<Pin />} title="Deliver to" name={o.address.area || o.address.line2}
             lines={[o.tripKm != null ? `${o.tripKm} km from the kitchen` : '', 'Full address and phone number show once you accept.']} />
         )}
-        {o.mine && carrying && !drop && (
+        {o.mine && o.dropIgnoredKm != null && !['delivered', 'cancelled'].includes(o.status) ? (
+          <div className="banner banner--warn">
+            <Alert size={20} />
+            <p>The location saved with this address is {o.dropIgnoredKm} km from the kitchen, so it can’t be right and isn’t used. Go by the address above: Navigate searches it. Call {o.customerName.split(' ')[0]} if you can’t find it.</p>
+          </div>
+        ) : o.mine && carrying && !drop && (
           <p className="muted small">This customer typed their address without a map pin. Use Navigate (it searches the address) or call them.</p>
         )}
 

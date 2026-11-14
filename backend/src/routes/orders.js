@@ -6,7 +6,7 @@ import express, { Router } from 'express';
 import { store } from '../db/index.js';
 import { config } from '../config.js';
 import { HttpError, badRequest, conflict, forbidden, notFound, nowIso, MIN } from '../lib/http.js';
-import { LIVE_STATUSES, BEFORE_PICKUP, cashToCollect, distanceKm, dropPoint, money } from '../lib/rules.js';
+import { LIVE_STATUSES, BEFORE_PICKUP, cashToCollect, distanceKm, dropPoint, ignoredDropKm, money } from '../lib/rules.js';
 import { canTakeOrders, syncAgentStatus } from '../lib/agents.js';
 import { finishedOrders, summarize } from '../lib/stats.js';
 import { selfAssign } from '../lib/settings.js';
@@ -43,6 +43,9 @@ function riderOrder(o, agent) {
     address: mine
       ? { label: a.label || '', line1: a.line1 || '', line2: a.line2 || '', landmark: a.landmark || '', area: a.area || '', pincode: a.pincode || '', mapAddress: a.mapAddress || '', ...(drop || {}) }
       : { line2: a.line2 || '', area: a.area || '', ...(drop && { lat: round(drop.lat, 3), lng: round(drop.lng, 3) }) },
+    // The address came with a location too far from the kitchen to be right (km away): it's left out above, and
+    // the app tells the rider to go by the typed address.
+    dropIgnoredKm: mine ? ignoredDropKm(o) : null,
     note: mine ? o.note || '' : '',
     tripKm: config.kitchen && drop ? round(distanceKm(config.kitchen, drop)) : null,
     dispatchedAt: o.dispatchedAt || null,
