@@ -64,6 +64,9 @@ export const config = {
     lng: kitchenLng,
   } : null,
   supportPhone: process.env.SUPPORT_PHONE || '',
+  // A customer's saved location further than this from the kitchen can't be their address (it was taken by a
+  // phone or computer somewhere else), so riders get the typed address instead. 0 = trust every location.
+  maxDropKm: Math.max(0, num(process.env.MAX_DROP_KM, 10)),
 
   // Riders may pick unassigned orders themselves (SELF_ASSIGN=false: only the panel assigns).
   selfAssign: process.env.SELF_ASSIGN !== 'false',
