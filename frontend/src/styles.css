@@ -276,6 +276,8 @@ p.center { text-align: center; }
 .stop__body b { font-size: 16px; }
 .stop__body span { color: #444; }
 .stop__far { color: var(--blue) !important; font-weight: 600; font-size: 13px; margin-top: 2px; }
+.stop__also { font-size: 13px; color: var(--muted, #666) !important; }
+.stop__also a { color: var(--blue); font-weight: 600; text-decoration: none; }
 .stop__actions { display: flex; gap: 8px; flex: none; }
 .round-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--green-soft); color: var(--green); }
 .round-btn--primary { background: var(--blue); color: var(--white); }

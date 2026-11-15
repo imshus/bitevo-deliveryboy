@@ -59,7 +59,7 @@ export default function Home() {
         toast(`${o.orderNo}: the kitchen accepted it. Head to the kitchen.`, 'good');
       } else if (o.status === 'out_for_delivery' && byKitchen) {
         alertRider('Order sent out', `${o.orderNo} is marked out for delivery`);
-        toast(`${o.orderNo} is now out for delivery. Take it to ${o.customerName}.`, 'good');
+        toast(`${o.orderNo} is now out for delivery. Take it to ${o.receiver?.name || o.customerName}.`, 'good');
       }
     }
     for (const [id, was] of before) {
@@ -93,7 +93,7 @@ export default function Home() {
   };
 
   const stops = [
-    ...mine.map((o, i) => ({ id: o._id, lat: o.address.lat, lng: o.address.lng, label: `${i + 1}. ${o.customerName}`, number: i + 1, active: true })),
+    ...mine.map((o, i) => ({ id: o._id, lat: o.address.lat, lng: o.address.lng, label: `${i + 1}. ${o.receiver?.name || o.customerName}`, number: i + 1, active: true })),
     ...(online ? available.map(o => ({ id: o._id, lat: o.address.lat, lng: o.address.lng, label: `New order · ${o.address.area || o.address.line2}` })) : []),
   ];
   const blockedReason = !online ? 'Go online to accept' : orders.data?.slotsLeft === 0 ? 'Deliver your orders first' : null;

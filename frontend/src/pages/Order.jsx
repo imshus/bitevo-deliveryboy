@@ -146,7 +146,8 @@ function Steps({ status }) {
   );
 }
 
-function Stop({ icon, title, name, lines, phone, phoneLabel, navUrl, far }) {
+// `also`: someone else to reach, e.g. the customer who ordered when another person receives it ({ label, phone }).
+function Stop({ icon, title, name, lines, phone, phoneLabel, navUrl, far, also }) {
   return (
     <div className="stop">
       <div className="stop__icon">{icon}</div>
@@ -154,6 +155,11 @@ function Stop({ icon, title, name, lines, phone, phoneLabel, navUrl, far }) {
         <small>{title}</small>
         <b>{name}</b>
         {lines.filter(Boolean).map(l => <span key={l}>{l}</span>)}
+        {also && (
+          <span className="stop__also">
+            {also.label}{also.phone && <> · <a href={telLink(also.phone)}>{also.phone}</a></>}
+          </span>
+        )}
         {far != null && <span className="stop__far">{distance(far)} from you</span>}
       </div>
       <div className="stop__actions">
@@ -195,6 +201,12 @@ export default function OrderPage() {
   const kitchen = config.kitchen;
   const drop = hasPoint(o?.address) ? { lat: o.address.lat, lng: o.address.lng } : null;
   const beforePickup = o && ['placed', 'preparing'].includes(o.status);
+  // Who takes the order at the door: the receiver the customer named on the address, else the customer. When
+  // that's someone else, the customer who ordered is shown too, with their number.
+  const recipient = o?.receiver ? { name: o.receiver.name || o.customerName, phone: o.receiver.phone } : { name: o?.customerName, phone: o?.customerPhone };
+  const orderedBy = o?.receiver && (o.receiver.phone !== o.customerPhone || o.receiver.name !== o.customerName)
+    ? { label: `Ordered by ${o.customerName}`, phone: o.receiver.phone !== o.customerPhone ? o.customerPhone : null }
+    : null;
   // The leg the rider is on: to the kitchen, then to the customer. For an order on offer: kitchen → customer.
   const [from, to] = !o ? [null, null]
     : !o.mine ? (beforePickup ? [kitchen, drop] : [null, null])
@@ -262,7 +274,7 @@ export default function OrderPage() {
   return (
     <div className="page page--order">
       <LiveMap className="map--order" me={me} kitchen={kitchen} route={route} trail={trail} fitKey={`${o._id}:${o.status}`}
-        stops={drop ? [{ id: o._id, ...drop, label: o.customerName, active: true }] : []}>
+        stops={drop ? [{ id: o._id, ...drop, label: recipient.name, active: true }] : []}>
         <button type="button" className="map__back" onClick={() => navigate(-1)} aria-label="Back"><Back /></button>
         {route && to && (
           <div className="eta">
@@ -295,9 +307,11 @@ export default function OrderPage() {
             phone={kitchen.phone} phoneLabel="Call the kitchen" navUrl={directionsUrl(kitchen)} far={me ? distanceM(me, kitchen) : null} />
         )}
         {o.mine ? (
-          <Stop icon={<Pin />} title={o.status === 'delivered' ? 'Delivered to' : 'Deliver to'} name={o.customerName}
-            lines={[addressLine(o.address), o.address.landmark && `Landmark: ${o.address.landmark}`]}
-            phone={['delivered', 'cancelled'].includes(o.status) ? null : o.customerPhone} phoneLabel="Call the customer"
+          <Stop icon={<Pin />} title={o.status === 'delivered' ? 'Delivered to' : 'Deliver to'} name={recipient.name}
+            lines={[!['delivered', 'cancelled'].includes(o.status) && recipient.phone, addressLine(o.address), o.address.landmark && `Landmark: ${o.address.landmark}`]}
+            phone={['delivered', 'cancelled'].includes(o.status) ? null : recipient.phone}
+            phoneLabel={o.receiver ? `Call ${recipient.name}, who receives the order` : 'Call the customer'}
+            also={orderedBy && !['delivered', 'cancelled'].includes(o.status) ? orderedBy : null}
             navUrl={['delivered', 'cancelled'].includes(o.status) ? null : directionsUrl(drop, addressLine(o.address))}
             far={carrying ? fromDrop : null} />
         ) : (
@@ -378,7 +392,7 @@ export default function OrderPage() {
             <p className="banner banner--warn"><Alert size={18} /> You’re {distance(fromDrop)} from the customer’s pin. Only confirm once you’ve handed the order over.</p>
           )}
           {cash > 0
-            ? <PayAtDoor amount={cash} name={o.customerName} pay={pay} setPay={setPay} />
+            ? <PayAtDoor amount={cash} name={recipient.name} pay={pay} setPay={setPay} />
             : <p className="muted">Paid online. Don’t take any money.</p>}
           <Proof o={o} onSaved={order.reload} />
           <button type="button" className="btn btn--good btn--block btn--lg" disabled={busy || !proofDone || (cash > 0 && !pay.ok)} onClick={deliver}>

@@ -26,7 +26,7 @@ export function MyOrderCard({ order, number, now }) {
       </div>
       <div className="ocard__main">
         <div className="ocard__who">
-          <b>{order.customerName}</b>
+          <b>{order.receiver?.name || order.customerName}</b>
           <span>{order.address.area || order.address.line2}</span>
         </div>
         <Payment order={order} />

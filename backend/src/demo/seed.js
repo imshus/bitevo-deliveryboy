@@ -23,7 +23,7 @@ const MENU = [
 const PLACES = [
   { line1: 'House 312, Block C', line2: 'Sector 45, Gurugram', landmark: 'Near Tulip Chowk', area: 'Sector 45', pincode: '122003', lat: 28.4432, lng: 77.0652 },
   { line1: 'B-17, 2nd floor', line2: 'Sector 40, Gurugram', landmark: 'Opposite community centre', area: 'Sector 40', pincode: '122003', lat: 28.4562, lng: 77.0571 },
-  { line1: 'Plot 61, Tower 2', line2: 'Sector 44, Gurugram', landmark: 'Behind the metro parking', area: 'Sector 44', pincode: '122003', lat: 28.4486, lng: 77.0779 },
+  { line1: 'Plot 61, Tower 2', line2: 'Sector 44, Gurugram', landmark: 'Behind the metro parking', area: 'Sector 44', pincode: '122003', receiverName: 'Neha Verma', receiverPhone: '+91 98111 22233', lat: 28.4486, lng: 77.0779 },
   { line1: 'Flat 704, Green Heights', line2: 'Sector 45, Gurugram', landmark: 'Gate 3', area: 'Sector 45', pincode: '122003', lat: 28.4411, lng: 77.0695 },
   { line1: 'H.No. 1180', line2: 'Sector 40, Gurugram', landmark: 'Near the park', area: 'Sector 40', pincode: '122003', lat: 28.4521, lng: 77.0535 },
 ];

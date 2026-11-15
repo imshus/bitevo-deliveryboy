@@ -40,6 +40,9 @@ function riderOrder(o, agent) {
     cashToCollect: cashToCollect(o),
     customerName: mine ? o.customerName : firstName(o.customerName),
     customerPhone: mine ? o.customerPhone : null,
+    // Who takes the order at the door, when the customer named someone on the address (the website's address
+    // form asks for a receiver's name and mobile number). The rider hands it to them and calls them first.
+    receiver: mine && a.receiverPhone ? { name: a.receiverName || '', phone: a.receiverPhone } : null,
     address: mine
       ? { label: a.label || '', line1: a.line1 || '', line2: a.line2 || '', landmark: a.landmark || '', area: a.area || '', pincode: a.pincode || '', mapAddress: a.mapAddress || '', ...(drop || {}) }
       : { line2: a.line2 || '', area: a.area || '', ...(drop && { lat: round(drop.lat, 3), lng: round(drop.lng, 3) }) },
